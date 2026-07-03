@@ -1,0 +1,147 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background-color: #06060e;
+  color: white;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  background-image:
+    radial-gradient(ellipse 80% 60% at 10% 40%, rgba(0, 212, 255, 0.04) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 90% 10%, rgba(180, 77, 255, 0.04) 0%, transparent 60%);
+  min-height: 100vh;
+}
+
+@layer components {
+  .card {
+    background: linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
+    background-color: #0d0d1c;
+    border: 1px solid rgba(0, 212, 255, 0.1);
+    border-radius: 1rem;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.04);
+  }
+
+  .card-active {
+    border-color: rgba(0, 212, 255, 0.5) !important;
+    box-shadow: 0 0 24px rgba(0,212,255,0.15), 0 8px 32px rgba(0,0,0,0.8) !important;
+  }
+
+  .btn-neon {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 2rem;
+    border-radius: 0.75rem;
+    font-weight: 600;
+    font-family: inherit;
+    color: white;
+    background: linear-gradient(135deg, rgba(0,212,255,0.15), rgba(180,77,255,0.1));
+    border: 1px solid rgba(0, 212, 255, 0.4);
+    box-shadow: 0 0 20px rgba(0,212,255,0.12), inset 0 1px 0 rgba(255,255,255,0.08);
+    transition: all 0.2s ease;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .btn-neon:hover:not(:disabled) {
+    border-color: rgba(0, 212, 255, 0.7);
+    box-shadow: 0 0 32px rgba(0,212,255,0.3), inset 0 1px 0 rgba(255,255,255,0.08);
+    transform: translateY(-1px);
+  }
+
+  .btn-neon:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 2rem;
+    border-radius: 0.75rem;
+    font-weight: 600;
+    font-family: inherit;
+    color: rgba(255,255,255,0.5);
+    border: 1px solid rgba(255,255,255,0.08);
+    background: transparent;
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+
+  .btn-ghost:hover:not(:disabled) {
+    color: white;
+    border-color: rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.04);
+  }
+
+  .btn-ghost:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .btn-danger {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    font-family: inherit;
+    color: rgba(255, 80, 80, 0.7);
+    border: 1px solid rgba(255, 80, 80, 0.15);
+    background: transparent;
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+
+  .btn-danger:hover {
+    color: rgb(255, 100, 100);
+    border-color: rgba(255, 80, 80, 0.4);
+    background: rgba(255, 80, 80, 0.05);
+  }
+
+  .input-dark {
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 0.625rem;
+    color: white;
+    padding: 0.625rem 0.875rem;
+    font-size: 0.875rem;
+    font-family: inherit;
+    transition: all 0.2s ease;
+    width: 100%;
+  }
+
+  .input-dark::placeholder {
+    color: rgba(255,255,255,0.18);
+  }
+
+  .input-dark:focus {
+    outline: none;
+    border-color: rgba(0, 212, 255, 0.4);
+    box-shadow: 0 0 0 3px rgba(0,212,255,0.08);
+  }
+
+  .label-dark {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: rgba(255,255,255,0.8);
+  }
+
+  .hint-dark {
+    font-size: 0.75rem;
+    color: #7777aa;
+  }
+
+  .section-title {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(0, 212, 255, 0.5);
+    margin-bottom: 1rem;
+  }
+}
