@@ -1,16 +1,21 @@
 # VoiceGuide
 
-AI tutorial narrator for course sellers and coaches. Record your screen once — get back a narrated MP4 in your own cloned voice, with editable steps.
+Turn any screen recording into a fully narrated tutorial — in your own cloned voice — in under a minute.
+
+Record your screen, let AI watch it and write the script, edit the steps, then download a finished MP4 with your voice reading the narration synced to the right timestamps.
 
 ---
 
-## What it does
+## Features
 
-1. You record your screen performing a task
-2. AI watches the recording, extracts key moments, and writes a narration script
-3. You edit the script if needed
-4. Your cloned voice reads the script, synced to the right timestamps
-5. You download a finished narrated MP4
+- **Voice cloning** — clone your voice from a 2–3 minute audio sample via Fish Audio (free)
+- **Voice library** — save multiple named voices, switch between them any time
+- **Screen recording** — capture any screen or window directly in the browser
+- **AI script generation** — Claude vision watches your keyframes and writes a step-by-step narration script focused only on what your cursor is doing
+- **Editable steps** — review and tweak every line before narration is generated
+- **Tone selector** — Enthusiastic, Explanatory, Friendly, Professional, Concise, or Beginner-friendly
+- **TTS narration** — Fish Audio synthesises each step in your cloned voice
+- **MP4 export** — ffmpeg mixes all audio clips over your screen recording at the right timestamps
 
 ---
 
@@ -18,62 +23,55 @@ AI tutorial narrator for course sellers and coaches. Record your screen once —
 
 | Layer | Tech |
 |---|---|
-| Frontend | React 18 + Vite + TypeScript + Tailwind + Zustand |
-| Backend | Express + TypeScript (ts-node-dev) |
+| Frontend | React 18 + Vite + TypeScript + Tailwind CSS + Zustand |
+| Backend | Express + TypeScript |
 | Frame extraction & muxing | ffmpeg |
-| Vision AI | Ollama — moondream (frame description) + gemma4:e4b (script writing) |
-| TTS | ElevenLabs (`eleven_monolingual_v1`) |
+| Vision AI | Claude Haiku (Anthropic) — batches all keyframes in one call |
+| Voice cloning & TTS | Fish Audio API |
 | State persistence | Zustand + localStorage |
 
 ---
 
 ## Prerequisites
 
-- Node 22+ and npm
-- ffmpeg (`brew install ffmpeg`)
-- Ollama (`brew install ollama`) with two models pulled:
-  ```bash
-  ollama pull moondream
-  ollama pull gemma4:e4b
-  ```
-- ElevenLabs account (free tier works)
+- Node 22+
+- ffmpeg — `brew install ffmpeg`
+- API keys (see Environment Variables below)
 
 ---
 
-## Setup
-
-### 1. Install dependencies
+## Local setup
 
 ```bash
+# 1. Install dependencies
 cd server && npm install
 cd ../client && npm install
-```
 
-### 2. Configure environment
+# 2. Configure environment
+cp .env.example server/.env
+# Fill in your keys in server/.env
 
-Create `server/.env`:
-
-```
-ELEVENLABS_API_KEY=your_key_here
-```
-
-### 3. Start Ollama
-
-```bash
-ollama serve
-```
-
-### 4. Start the servers
-
-```bash
-# Terminal 1 — API server (port 3001)
-cd server && npm run dev
-
-# Terminal 2 — Client (port 5173)
-cd client && npm run dev
+# 3. Start the servers (two terminals)
+cd server && npm run dev        # API — http://localhost:3001
+cd client && npm run dev        # App — http://localhost:5173
 ```
 
 Open **http://localhost:5173**
+
+---
+
+## Environment variables
+
+Create `server/.env` with the following:
+
+```
+ANTHROPIC_API_KEY=        # Claude vision for script generation
+FISH_AUDIO_API_KEY=       # Voice cloning + TTS
+ALLOWED_ORIGINS=http://localhost:5173   # comma-separated in production
+PORT=3001
+```
+
+API keys are server-side only and never reach the browser.
 
 ---
 
@@ -81,13 +79,12 @@ Open **http://localhost:5173**
 
 ```
 Browser (MediaRecorder)
-  → screen.webm uploaded to Express (multer)
-  → ffmpeg extracts 1 frame every 5s → JPEG frames
-  → moondream describes each frame (Ollama, local)
-  → gemma4 writes [STEP N] narration script from descriptions (Ollama, local)
-  → User reviews + edits steps
-  → ElevenLabs TTS → per-step MP3 files
-  → ffmpeg muxes audio clips over screen recording (adelay + atrim)
+  → screen.webm uploaded to Express
+  → ffmpeg extracts 1 frame every 5s → JPEG keyframes
+  → Claude Haiku vision sees all frames at once → writes [STEP N] narration script
+  → User reviews and edits steps
+  → Fish Audio TTS → per-step MP3 files (in your cloned voice)
+  → ffmpeg mixes audio clips over screen recording with per-step adelay
   → MP4 download
 ```
 
@@ -95,13 +92,13 @@ Browser (MediaRecorder)
 
 ## App flow
 
-| Page | Route | Purpose |
+| Page | Route | What happens |
 |---|---|---|
-| Voice Setup | `/onboarding` | Pick a built-in voice or clone your own |
-| Context | `/setup` | Title, description, audience, tone for the script |
-| Record | `/record` | Start/stop screen recording |
-| Review | `/review` | Edit steps, generate narration, preview audio |
-| Export | `/export` | Download the final MP4 |
+| Voice library | `/onboarding` | Clone your voice, name it, manage saved voices |
+| Context | `/setup` | Set title, description, audience and tone |
+| Record | `/record` | Start screen recording, stop to process |
+| Review | `/review` | Edit steps, generate narration per-step, preview audio |
+| Export | `/export` | Render and download the final MP4 |
 
 ---
 
@@ -112,78 +109,53 @@ voicetutorial/
 ├── client/
 │   └── src/
 │       ├── pages/          Onboarding, Setup, Record, Review, Export
-│       ├── components/     ScriptEditor, VideoPreview, VideoContextForm, BackButton
-│       ├── store/          useStore.ts — Zustand global state
-│       └── lib/            api.ts — typed fetch wrappers
+│       ├── components/     VoiceSampleRecorder, VideoContextForm, ScriptEditor, VideoPreview, BackButton
+│       ├── store/          useStore.ts — Zustand global state + localStorage persistence
+│       └── lib/            api.ts — typed fetch helpers
 └── server/
     └── src/
-        ├── routes/         recording.ts, voice.ts, export.ts
-        ├── services/       ffmpeg.ts, elevenlabs.ts, scriptGen.ts
+        ├── routes/         voice.ts, recording.ts, export.ts
+        ├── services/       fishaudio.ts, scriptGen.ts, ffmpeg.ts
         └── middleware/     upload.ts (multer)
 ```
 
 ---
 
-## Key decisions
+## Deploying
 
-**Local AI (Ollama) instead of cloud vision**
-moondream + gemma4 run entirely on your machine — zero per-request cost, no data leaves your computer.
+**Client → Vercel**
+- Root directory: `client`
+- Build command: `npm run build`
+- Output: `dist`
+- Environment variable: `VITE_API_URL=https://your-server.up.railway.app`
 
-**Timestamp anchoring**
-Each narration step is anchored to the actual frame timestamp it was derived from, not evenly distributed across the video duration.
-
-**Overlap prevention**
-Each audio clip is trimmed with `atrim=duration=X` so it can never bleed into the next step's window.
-
-**Narration retry is resumable**
-If step 4 of 7 fails, completed steps are saved. Clicking Generate again skips steps that already have audio.
-
-**WebM duration fallback**
-Browser `MediaRecorder` WebM files often have no duration header. If ffprobe returns 0, the server falls back to `last_frame_timestamp + 5s`.
-
----
-
-## Environment variables
-
-| Variable | Required | Notes |
-|---|---|---|
-| `ELEVENLABS_API_KEY` | Yes | Free tier works — standard TTS only |
-
-API keys are server-side only and never sent to the browser.
+**Server → Railway**
+- Root directory: `server`
+- Railway reads `nixpacks.toml` which installs ffmpeg automatically
+- Add all environment variables in the Railway dashboard
+- Set `ALLOWED_ORIGINS` to your Vercel URL
 
 ---
 
 ## Dev commands
 
 ```bash
-# Type-check
+# Type check
 cd server && npx tsc --noEmit
 cd client && npx tsc --noEmit
 
-# Build for production
+# Production build
 cd server && npm run build
 cd client && npm run build
 ```
 
 ---
 
-## Health check
-
-`GET http://localhost:3001/health` returns:
-
-```json
-{ "ok": true, "ollama": true }
-```
-
-`ollama: false` means Ollama is not running — the client shows a warning banner automatically.
-
----
-
-## Roadmap (v2 ideas)
+## Roadmap
 
 - Re-render a single step without redoing all narration
-- Branded intros / outros and captions
-- Multi-language output
-- Tutorial library — browse past recordings
-- Shareable hosted links (Loom-style)
-- Cloud AI option (Claude Sonnet vision) for better frame accuracy
+- Subtitle / caption burn-in option
+- Branded intros and outros
+- Multi-language TTS output
+- Tutorial library — browse and re-export past recordings
+- Shareable hosted links
