@@ -5,7 +5,7 @@ export interface VideoContext {
   title: string;
   description: string;
   audience: string;
-  tone: 'friendly' | 'professional' | 'beginner' | 'expert';
+  tone: 'enthusiastic' | 'explanatory' | 'friendly' | 'professional' | 'concise' | 'beginner';
   keywords: string;
 }
 
