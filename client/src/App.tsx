@@ -1,5 +1,4 @@
 import { BrowserRouter, Routes, Route, Navigate, NavLink } from 'react-router-dom';
-import { useEffect, useState } from 'react';
 import Onboarding from './pages/Onboarding';
 import Setup from './pages/Setup';
 import Record from './pages/Record';
@@ -59,37 +58,10 @@ function Nav() {
   );
 }
 
-function OllamaBanner() {
-  const [ollamaDown, setOllamaDown] = useState(false);
-
-  useEffect(() => {
-    fetch('http://localhost:3001/health')
-      .then((r) => r.json())
-      .then((d) => setOllamaDown(!d.ollama))
-      .catch(() => setOllamaDown(true));
-  }, []);
-
-  if (!ollamaDown) return null;
-  return (
-    <div
-      className="px-6 py-2.5 text-sm flex items-center gap-2"
-      style={{
-        background: 'rgba(255,160,0,0.06)',
-        borderBottom: '1px solid rgba(255,160,0,0.15)',
-        color: 'rgba(255,200,80,0.85)',
-      }}
-    >
-      <span>⚠</span>
-      <span>Ollama is not running — script generation will fail. Start it with <code className="font-mono bg-white/5 px-1 rounded">ollama serve</code> then refresh.</span>
-    </div>
-  );
-}
-
 export default function App() {
   return (
     <BrowserRouter>
       <Nav />
-      <OllamaBanner />
       <main className="min-h-screen">
         <Routes>
           <Route path="/" element={<Navigate to="/onboarding" replace />} />
