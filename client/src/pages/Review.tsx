@@ -18,9 +18,12 @@ export default function Review() {
   const voiceId = useStore((s) => s.voiceId);
   const videoUrl = useStore((s) => s.videoUrl);
   const updateSegmentText = useStore((s) => s.updateSegmentText);
+  const reorderSegments = useStore((s) => s.reorderSegments);
   const updateSyncEntry = useStore((s) => s.updateSyncEntry);
   const setSyncManifest = useStore((s) => s.setSyncManifest);
   const setDownloadUrl = useStore((s) => s.setDownloadUrl);
+
+  const videoContext = useStore((s) => s.videoContext);
 
   const [narrationStatus, setNarrationStatus] = useState<NarrationStatus>('idle');
   const [narrationProgress, setNarrationProgress] = useState(0);
@@ -28,6 +31,9 @@ export default function Review() {
   const [rendering, setRendering] = useState(false);
   const [renderError, setRenderError] = useState('');
   const [burnSubtitles, setBurnSubtitles] = useState(false);
+  const [addTitleCard, setAddTitleCard] = useState(false);
+  const [cardTitle, setCardTitle] = useState('');
+  const [cardSubtitle, setCardSubtitle] = useState('');
 
   const hasNarration = syncManifest.length > 0 && syncManifest.length === segments.length;
 
@@ -90,7 +96,10 @@ export default function Review() {
     setRendering(true);
     setRenderError('');
     try {
-      const { downloadUrl } = await renderExport(sessionId, syncManifest, videoUrl, burnSubtitles, segments);
+      const titleCardPayload = addTitleCard && cardTitle.trim()
+        ? { title: cardTitle.trim(), subtitle: cardSubtitle.trim() }
+        : undefined;
+      const { downloadUrl } = await renderExport(sessionId, syncManifest, videoUrl, burnSubtitles, segments, titleCardPayload);
       setDownloadUrl(downloadUrl);
       navigate('/export');
     } catch (e) {
@@ -126,6 +135,7 @@ export default function Review() {
             onUpdateText={updateSegmentText}
             onRegenerateAudio={handleRegenerateAudio}
             onRecordStep={handleRecordStep}
+            onReorder={reorderSegments}
           />
 
           <div className="mt-8 flex flex-col gap-3">
@@ -185,6 +195,64 @@ export default function Review() {
                     </p>
                   </div>
                 </button>
+
+                {/* Title card toggle */}
+                <button
+                  onClick={() => {
+                    const next = !addTitleCard;
+                    setAddTitleCard(next);
+                    if (next && !cardTitle) {
+                      setCardTitle(videoContext.title);
+                      setCardSubtitle(videoContext.description);
+                    }
+                  }}
+                  className="flex items-center gap-3 p-3 rounded-xl text-sm transition-all self-start"
+                  style={{
+                    background: addTitleCard ? 'rgba(180,77,255,0.08)' : 'rgba(255,255,255,0.02)',
+                    border: `1px solid ${addTitleCard ? 'rgba(180,77,255,0.25)' : 'rgba(255,255,255,0.06)'}`,
+                  }}
+                >
+                  <div className="w-9 h-5 rounded-full relative flex-shrink-0 transition-all"
+                    style={{ background: addTitleCard ? 'rgba(180,77,255,0.6)' : 'rgba(255,255,255,0.12)' }}>
+                    <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all"
+                      style={{ left: addTitleCard ? '18px' : '2px' }} />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-medium" style={{ color: addTitleCard ? '#b44dff' : 'rgba(255,255,255,0.6)' }}>
+                      Add title card at start
+                    </p>
+                    <p className="text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                      3-second branded intro — ideal for course platforms
+                    </p>
+                  </div>
+                </button>
+
+                {addTitleCard && (
+                  <div className="flex flex-col gap-2 p-3 rounded-xl" style={{ background: 'rgba(180,77,255,0.04)', border: '1px solid rgba(180,77,255,0.12)' }}>
+                    <div>
+                      <label className="text-xs font-medium mb-1 block" style={{ color: 'rgba(255,255,255,0.5)' }}>Title</label>
+                      <input
+                        value={cardTitle}
+                        onChange={(e) => setCardTitle(e.target.value)}
+                        placeholder="e.g. How to Use VoiceGuide"
+                        maxLength={80}
+                        className="w-full rounded-lg px-3 py-2 text-sm text-white outline-none"
+                        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(180,77,255,0.2)', caretColor: '#b44dff' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium mb-1 block" style={{ color: 'rgba(255,255,255,0.5)' }}>Tagline <span style={{ color: 'rgba(255,255,255,0.25)' }}>(optional)</span></label>
+                      <input
+                        value={cardSubtitle}
+                        onChange={(e) => setCardSubtitle(e.target.value)}
+                        placeholder="e.g. A step-by-step tutorial"
+                        maxLength={70}
+                        className="w-full rounded-lg px-3 py-2 text-sm text-white outline-none"
+                        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(180,77,255,0.2)', caretColor: '#b44dff' }}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 <button
                   onClick={handleRender}

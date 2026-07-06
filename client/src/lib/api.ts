@@ -21,7 +21,9 @@ export async function processRecording(
   narrationBlob: Blob | null,
   videoContext: import('../store/useStore').VideoContext,
   clickLog: { x: number; y: number; timestamp: number }[],
-  voiceId: string
+  voiceId: string,
+  trimStart?: number,
+  trimEnd?: number
 ): Promise<ProcessResponse> {
   const form = new FormData();
   form.append('screen', screenBlob, 'screen.webm');
@@ -29,6 +31,8 @@ export async function processRecording(
   form.append('videoContext', JSON.stringify(videoContext));
   form.append('clickLog', JSON.stringify(clickLog));
   form.append('voiceId', voiceId);
+  if (trimStart !== undefined && trimStart > 0) form.append('trimStart', String(trimStart));
+  if (trimEnd !== undefined && trimEnd > 0) form.append('trimEnd', String(trimEnd));
 
   const res = await fetch(`${BASE}/recording/process`, { method: 'POST', body: form });
   if (!res.ok) throw new Error(await res.text());
@@ -72,12 +76,13 @@ export async function renderExport(
   syncManifest: import('../store/useStore').SyncEntry[],
   videoUrl: string,
   burnSubtitles?: boolean,
-  segments?: import('../store/useStore').ScriptSegment[]
+  segments?: import('../store/useStore').ScriptSegment[],
+  titleCard?: { title: string; subtitle: string }
 ): Promise<{ downloadUrl: string }> {
   const res = await fetch(`${BASE}/export/render`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sessionId, syncManifest, videoUrl: videoUrl.replace(BASE, ''), burnSubtitles, segments }),
+    body: JSON.stringify({ sessionId, syncManifest, videoUrl: videoUrl.replace(BASE, ''), burnSubtitles, segments, titleCard }),
   });
   if (!res.ok) throw new Error(await res.text());
   const data = await res.json();

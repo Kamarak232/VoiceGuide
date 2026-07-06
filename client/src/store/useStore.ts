@@ -46,6 +46,7 @@ interface Store {
   segments: ScriptSegment[];
   setSegments: (segs: ScriptSegment[]) => void;
   updateSegmentText: (stepNumber: number, text: string) => void;
+  reorderSegments: (newOrder: number[]) => void;
 
   syncManifest: SyncEntry[];
   setSyncManifest: (m: SyncEntry[]) => void;
@@ -94,6 +95,22 @@ export const useStore = create<Store>()(
             seg.stepNumber === stepNumber ? { ...seg, text } : seg
           ),
         })),
+      reorderSegments: (newOrder) =>
+        set((s) => {
+          const segMap = new Map(s.segments.map((seg) => [seg.stepNumber, seg]));
+          const syncMap = new Map(s.syncManifest.map((e) => [e.step, e]));
+          const newSegments = newOrder.map((oldStep, i) => ({
+            ...segMap.get(oldStep)!,
+            stepNumber: i + 1,
+          }));
+          const newSyncManifest = newOrder
+            .map((oldStep, i) => {
+              const entry = syncMap.get(oldStep);
+              return entry ? { ...entry, step: i + 1 } : null;
+            })
+            .filter((e): e is SyncEntry => e !== null);
+          return { segments: newSegments, syncManifest: newSyncManifest };
+        }),
 
       syncManifest: [],
       setSyncManifest: (m) => set({ syncManifest: m }),

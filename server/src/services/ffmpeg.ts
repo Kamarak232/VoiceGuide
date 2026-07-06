@@ -2,6 +2,39 @@ import ffmpeg from 'fluent-ffmpeg';
 import path from 'path';
 import fs from 'fs';
 
+const FONT_PATHS = [
+  '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+  '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
+  '/usr/share/fonts/truetype/ubuntu/Ubuntu-B.ttf',
+  '/usr/share/fonts/truetype/freefont/FreeSansBold.ttf',
+  '/System/Library/Fonts/Supplemental/Arial Bold.ttf',
+  '/System/Library/Fonts/Helvetica.ttc',
+];
+
+function findFont(): string | null {
+  return FONT_PATHS.find((p) => fs.existsSync(p)) ?? null;
+}
+
+function escapeDrawtext(text: string): string {
+  return text.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/:/g, '\\:').replace(/\[/g, '\\[').replace(/\]/g, '\\]');
+}
+
+function wrapText(text: string, maxChars = 40): string[] {
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let current = '';
+  for (const word of words) {
+    if ((current + ' ' + word).trim().length > maxChars) {
+      if (current) lines.push(current.trim());
+      current = word;
+    } else {
+      current = (current + ' ' + word).trim();
+    }
+  }
+  if (current) lines.push(current.trim());
+  return lines;
+}
+
 export interface SyncEntry {
   step: number;
   audioFile: string;
@@ -157,4 +190,97 @@ function readFrameDir(dir: string): string[] {
     .filter(f => f.endsWith('.jpg'))
     .sort()
     .map(f => path.join(dir, f));
+}
+
+function escapeFontPath(p: string): string {
+  return p.replace(/\\/g, '\\\\').replace(/:/g, '\\:').replace(/ /g, '\\ ');
+}
+
+export function getVideoInfo(filePath: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    ffmpeg.ffprobe(filePath, (err, meta) => {
+      if (err) return reject(err);
+      const vs = meta.streams.find((s) => s.codec_type === 'video');
+      resolve({ width: vs?.width ?? 1280, height: vs?.height ?? 720 });
+    });
+  });
+}
+
+export function generateTitleCard(
+  title: string,
+  subtitle: string,
+  outputPath: string,
+  width: number,
+  height: number,
+  durationSecs = 3
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const font = findFont();
+    const titleSize = Math.round(height / 15);
+    const subtitleSize = Math.round(height / 32);
+
+    const titleLines = wrapText(title, 40).slice(0, 2).join('\n');
+    const safeTitle = escapeDrawtext(titleLines);
+    const safeSubtitle = subtitle ? escapeDrawtext(subtitle.slice(0, 70)) : '';
+
+    const fontPart = font ? `fontfile=${escapeFontPath(font)}:` : '';
+    const hasSubtitle = safeSubtitle.length > 0;
+    const titleY = hasSubtitle ? `h*2/5` : `(h-text_h)/2`;
+
+    let vf = `drawtext=${fontPart}text='${safeTitle}':fontcolor=white:fontsize=${titleSize}:x=(w-text_w)/2:y=${titleY}`;
+    if (hasSubtitle) {
+      vf += `,drawtext=${fontPart}text='${safeSubtitle}':fontcolor=0xbbbbcc:fontsize=${subtitleSize}:x=(w-text_w)/2:y=h*58/100`;
+    }
+    vf += `,drawbox=x=0:y=h-5:w=w:h=5:color=0x00d4ff@0.75:t=fill`;
+
+    ffmpeg()
+      .input(`color=c=0x0a0a1a:size=${width}x${height}:rate=30`)
+      .inputOptions(['-f', 'lavfi'])
+      .input('anullsrc=r=44100:cl=stereo')
+      .inputOptions(['-f', 'lavfi'])
+      .outputOptions([
+        '-vf', vf,
+        '-t', String(durationSecs),
+        '-c:v', 'libx264',
+        '-c:a', 'aac',
+        '-pix_fmt', 'yuv420p',
+        '-shortest',
+      ])
+      .output(outputPath)
+      .on('end', () => resolve())
+      .on('error', (err) => reject(err))
+      .run();
+  });
+}
+
+export function trimVideo(
+  inputPath: string,
+  outputPath: string,
+  startSecs: number,
+  endSecs: number
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    ffmpeg(inputPath)
+      .seekInput(startSecs)
+      .duration(endSecs - startSecs)
+      .outputOptions(['-c', 'copy'])
+      .output(outputPath)
+      .on('end', () => resolve())
+      .on('error', (err) => reject(err))
+      .run();
+  });
+}
+
+export function concatVideos(firstPath: string, secondPath: string, outputPath: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    ffmpeg()
+      .input(firstPath)
+      .input(secondPath)
+      .complexFilter('[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a]')
+      .outputOptions(['-map [v]', '-map [a]', '-c:v libx264', '-c:a aac', '-crf 23', '-pix_fmt yuv420p'])
+      .output(outputPath)
+      .on('end', () => resolve())
+      .on('error', (err) => reject(err))
+      .run();
+  });
 }

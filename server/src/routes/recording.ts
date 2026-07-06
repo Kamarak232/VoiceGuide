@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { upload } from '../middleware/upload';
 import { generateScriptFromKeyframes, VideoContext } from '../services/scriptGen';
-import { extractKeyframes, extractFallbackFrames, getVideoDuration } from '../services/ffmpeg';
+import { extractKeyframes, extractFallbackFrames, getVideoDuration, trimVideo } from '../services/ffmpeg';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs';
@@ -25,13 +25,24 @@ router.post('/process', recordingUpload, async (req: Request, res: Response) => 
   console.log(`[process] file received: ${screenFile.path} size: ${screenFile.size}`);
 
   const videoContext: VideoContext = JSON.parse(req.body.videoContext || '{}');
+  const trimStart = parseFloat(req.body.trimStart || '0');
+  const trimEnd = parseFloat(req.body.trimEnd || '0');
   const sessionId = uuidv4();
-  const screenPath = screenFile.path;
+  let screenPath = screenFile.path;
   const keyframeDir = path.join(__dirname, '../../../uploads', `frames-${sessionId}`);
 
   try {
-    console.log('[process] getting video duration...');
     let videoDuration = await getVideoDuration(screenPath);
+
+    if (trimStart > 0 || (trimEnd > 0 && trimEnd < videoDuration)) {
+      const end = trimEnd > 0 && trimEnd < videoDuration ? trimEnd : videoDuration;
+      const trimmedPath = screenPath + '.trimmed.webm';
+      console.log(`[process] trimming ${trimStart}s → ${end}s`);
+      await trimVideo(screenPath, trimmedPath, trimStart, end);
+      fs.unlinkSync(screenPath);
+      fs.renameSync(trimmedPath, screenPath);
+      videoDuration = end - trimStart;
+    }
     console.log(`[process] duration: ${videoDuration}s`);
 
     console.log('[process] extracting keyframes...');

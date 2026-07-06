@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { processRecording } from '../lib/api';
@@ -14,6 +14,7 @@ interface ClickEvent {
 type Status =
   | 'idle'
   | 'recording'
+  | 'trim'
   | 'uploading'
   | 'processing-frames'
   | 'processing-ai'
@@ -22,11 +23,116 @@ type Status =
   | 'error';
 
 const PROCESSING_STAGES: { key: Status; label: string; detail: string; durationMs: number }[] = [
-  { key: 'uploading',         label: 'Uploading recording',      detail: 'Sending your screen recording to the server…',          durationMs: 6000  },
-  { key: 'processing-frames', label: 'Extracting keyframes',     detail: 'Pulling one screenshot every 5 seconds…',               durationMs: 10000 },
-  { key: 'processing-ai',     label: 'Analysing with AI',        detail: 'Claude is watching your recording and taking notes…',   durationMs: 25000 },
-  { key: 'processing-script', label: 'Writing your script',      detail: 'Turning the analysis into step-by-step narration…',     durationMs: 12000 },
+  { key: 'uploading',         label: 'Uploading recording',   detail: 'Sending your screen recording to the server…',        durationMs: 6000  },
+  { key: 'processing-frames', label: 'Extracting keyframes',  detail: 'Pulling one screenshot every 5 seconds…',             durationMs: 10000 },
+  { key: 'processing-ai',     label: 'Analysing with AI',     detail: 'Claude is watching your recording and taking notes…', durationMs: 25000 },
+  { key: 'processing-script', label: 'Writing your script',   detail: 'Turning the analysis into step-by-step narration…',   durationMs: 12000 },
 ];
+
+const fmtSec = (s: number) =>
+  s < 60 ? `${s.toFixed(1)}s` : `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+function TrimTimeline({
+  duration,
+  start,
+  end,
+  onStartChange,
+  onEndChange,
+}: {
+  duration: number;
+  start: number;
+  end: number;
+  onStartChange: (v: number) => void;
+  onEndChange: (v: number) => void;
+}) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const startPct = duration > 0 ? (start / duration) * 100 : 0;
+  const endPct = duration > 0 ? (end / duration) * 100 : 100;
+
+  function getSecs(clientX: number) {
+    const rect = trackRef.current!.getBoundingClientRect();
+    return Math.max(0, Math.min(duration, ((clientX - rect.left) / rect.width) * duration));
+  }
+
+  function handlePointerDown(which: 'start' | 'end') {
+    return (e: React.PointerEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.currentTarget.setPointerCapture(e.pointerId);
+    };
+  }
+
+  function handlePointerMove(which: 'start' | 'end') {
+    return (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
+      const secs = getSecs(e.clientX);
+      if (which === 'start') onStartChange(Math.max(0, Math.min(secs, end - 1)));
+      else onEndChange(Math.min(duration, Math.max(secs, start + 1)));
+    };
+  }
+
+  return (
+    <div className="flex flex-col gap-3 select-none">
+      <div ref={trackRef} className="relative h-8 rounded-lg"
+        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.06)' }}>
+
+        {/* Active region */}
+        <div className="absolute top-0 h-full"
+          style={{
+            left: `${startPct}%`,
+            width: `${endPct - startPct}%`,
+            background: 'linear-gradient(90deg, rgba(0,212,255,0.25), rgba(180,77,255,0.2))',
+          }} />
+
+        {/* Start handle */}
+        <div
+          onPointerDown={handlePointerDown('start')}
+          onPointerMove={handlePointerMove('start')}
+          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-5 h-5 rounded-full z-10"
+          style={{
+            left: `${startPct}%`,
+            background: 'white',
+            boxShadow: '0 0 0 3px rgba(0,212,255,0.6), 0 2px 8px rgba(0,0,0,0.5)',
+            cursor: 'grab',
+            touchAction: 'none',
+          }}
+        />
+
+        {/* End handle */}
+        <div
+          onPointerDown={handlePointerDown('end')}
+          onPointerMove={handlePointerMove('end')}
+          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-5 h-5 rounded-full z-10"
+          style={{
+            left: `${endPct}%`,
+            background: 'white',
+            boxShadow: '0 0 0 3px rgba(180,77,255,0.6), 0 2px 8px rgba(0,0,0,0.5)',
+            cursor: 'grab',
+            touchAction: 'none',
+          }}
+        />
+      </div>
+
+      {/* Time labels under handles */}
+      <div className="relative h-5 text-xs font-mono">
+        <span className="absolute -translate-x-1/2" style={{ left: `${startPct}%`, color: '#00d4ff' }}>
+          {fmtSec(start)}
+        </span>
+        <span className="absolute -translate-x-1/2" style={{ left: `${endPct}%`, color: '#b44dff' }}>
+          {fmtSec(end)}
+        </span>
+      </div>
+
+      <p className="text-xs text-dim">
+        Keeping{' '}
+        <span className="text-white font-medium">{fmtSec(start)}</span>
+        {' → '}
+        <span className="text-white font-medium">{fmtSec(end)}</span>
+        {' · '}
+        <span className="text-white font-medium">{fmtSec(end - start)}</span> total
+      </p>
+    </div>
+  );
+}
 
 export default function Record() {
   const navigate = useNavigate();
@@ -41,6 +147,9 @@ export default function Record() {
   const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState('');
   const [seconds, setSeconds] = useState(0);
+  const [trimStart, setTrimStart] = useState(0);
+  const [trimEnd, setTrimEnd] = useState(0);
+  const [trimDuration, setTrimDuration] = useState(0);
 
   const screenRecorderRef = useRef<MediaRecorder | null>(null);
   const narrationRecorderRef = useRef<MediaRecorder | null>(null);
@@ -48,6 +157,23 @@ export default function Record() {
   const narrationChunks = useRef<Blob[]>([]);
   const clickLog = useRef<ClickEvent[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const screenBlobRef = useRef<Blob | null>(null);
+  const narrationBlobRef = useRef<Blob | null>(null);
+  const blobUrlRef = useRef('');
+  const previewVideoRef = useRef<HTMLVideoElement>(null);
+  const secondsRef = useRef(0);
+
+  useEffect(() => {
+    secondsRef.current = seconds;
+  }, [seconds]);
+
+  // Clean up blob URL when leaving trim screen
+  useEffect(() => {
+    if (status !== 'trim' && blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current);
+      blobUrlRef.current = '';
+    }
+  }, [status]);
 
   async function startRecording() {
     const [screenStream, micStream] = await Promise.all([
@@ -94,20 +220,23 @@ export default function Record() {
       narrationRecorderRef.current!.onstop = checkDone;
     });
 
-    const screenBlob = new Blob(screenChunks.current, { type: 'video/webm' });
-    const narrationBlob = new Blob(narrationChunks.current, { type: 'audio/webm' });
+    screenBlobRef.current = new Blob(screenChunks.current, { type: 'video/webm' });
+    narrationBlobRef.current = new Blob(narrationChunks.current, { type: 'audio/webm' });
+    blobUrlRef.current = URL.createObjectURL(screenBlobRef.current);
+
+    setTrimStart(0);
+    setTrimDuration(0);
+    setStatus('trim');
+  }
+
+  async function handleProcess() {
+    const screenBlob = screenBlobRef.current;
+    if (!screenBlob) return;
 
     setStatus('uploading');
     setError('');
 
     const stageTimers: ReturnType<typeof setTimeout>[] = [];
-    let elapsed = 0;
-    for (const stage of PROCESSING_STAGES.slice(1)) {
-      elapsed += PROCESSING_STAGES[PROCESSING_STAGES.findIndex(s => s.key === (elapsed === 0 ? 'uploading' : stage.key)) - 1]?.durationMs ?? 6000;
-      stageTimers.push(setTimeout(() => setStatus(stage.key), elapsed));
-    }
-    // simpler: just schedule each stage in sequence
-    stageTimers.length = 0;
     let delay = PROCESSING_STAGES[0].durationMs;
     for (let i = 1; i < PROCESSING_STAGES.length; i++) {
       const key = PROCESSING_STAGES[i].key;
@@ -115,13 +244,18 @@ export default function Record() {
       delay += PROCESSING_STAGES[i].durationMs;
     }
 
+    const ts = trimStart > 0 ? trimStart : undefined;
+    const te = trimEnd > 0 && trimEnd < trimDuration ? trimEnd : undefined;
+
     try {
       const result = await processRecording(
         screenBlob,
-        narrationBlob,
+        narrationBlobRef.current,
         videoContext,
         clickLog.current,
-        voiceId
+        voiceId,
+        ts,
+        te
       );
       stageTimers.forEach(clearTimeout);
 
@@ -147,14 +281,18 @@ export default function Record() {
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-16">
-      {!isProcessing && <BackButton to="/setup" />}
+      {!isProcessing && status !== 'trim' && <BackButton to="/setup" />}
 
-      <h1 className="text-4xl font-bold text-white mb-2">
-        {videoContext.title || 'Record your tutorial'}
-      </h1>
-      <p className="text-dim mb-10">
-        Click Record, share your screen, then navigate as normal. Talking aloud helps the AI write a better script.
-      </p>
+      {status !== 'trim' && (
+        <>
+          <h1 className="text-4xl font-bold text-white mb-2">
+            {videoContext.title || 'Record your tutorial'}
+          </h1>
+          <p className="text-dim mb-10">
+            Click Record, share your screen, then navigate as normal. Talking aloud helps the AI write a better script.
+          </p>
+        </>
+      )}
 
       {status === 'idle' && (
         <button onClick={startRecording} className="btn-neon">
@@ -177,14 +315,67 @@ export default function Record() {
             className="btn-neon"
             style={{ borderColor: 'rgba(239,68,68,0.5)', background: 'linear-gradient(135deg, rgba(239,68,68,0.15), rgba(180,0,0,0.1))', boxShadow: '0 0 20px rgba(239,68,68,0.2)' }}
           >
-            Stop & Process
+            Stop & Trim →
           </button>
+        </div>
+      )}
+
+      {status === 'trim' && (
+        <div className="flex flex-col gap-6 max-w-2xl">
+          <div>
+            <h1 className="text-3xl font-bold text-white mb-1">Trim recording</h1>
+            <p className="text-dim text-sm">Drag the handles to remove awkward moments from the start or end.</p>
+          </div>
+
+          {/* Video preview */}
+          <div className="rounded-xl overflow-hidden" style={{ background: '#000', aspectRatio: '16/9' }}>
+            <video
+              ref={previewVideoRef}
+              src={blobUrlRef.current}
+              className="w-full h-full object-contain"
+              onLoadedMetadata={() => {
+                const vid = previewVideoRef.current!;
+                const dur = isFinite(vid.duration) && vid.duration > 0
+                  ? vid.duration
+                  : secondsRef.current;
+                setTrimDuration(dur);
+                setTrimEnd(dur);
+              }}
+              playsInline
+              controls
+            />
+          </div>
+
+          {trimDuration > 0 ? (
+            <>
+              <TrimTimeline
+                duration={trimDuration}
+                start={trimStart}
+                end={trimEnd}
+                onStartChange={setTrimStart}
+                onEndChange={setTrimEnd}
+              />
+
+              <div className="flex items-center gap-4 flex-wrap">
+                <button onClick={handleProcess} className="btn-neon">
+                  Process Recording →
+                </button>
+                <button
+                  onClick={handleProcess}
+                  className="text-dim text-sm hover:text-white transition-colors"
+                >
+                  Skip trimming
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="text-dim text-sm">Loading preview…</p>
+          )}
         </div>
       )}
 
       {isProcessing && (
         <div className="flex flex-col gap-8 max-w-md">
-          {/* Current stage hero */}
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 rounded-full border-2 flex-shrink-0 flex items-center justify-center"
               style={{ borderColor: '#00d4ff', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
@@ -194,7 +385,6 @@ export default function Record() {
             </div>
           </div>
 
-          {/* Progress bar */}
           <div className="flex flex-col gap-2">
             <div className="w-full rounded-full h-1.5" style={{ background: 'rgba(255,255,255,0.06)' }}>
               <div
@@ -209,7 +399,6 @@ export default function Record() {
             <p className="text-xs text-dim text-right">{progressPct}%</p>
           </div>
 
-          {/* Stage checklist */}
           <div className="flex flex-col gap-2">
             {PROCESSING_STAGES.map((stage, i) => {
               const done = i < currentStageIndex;
