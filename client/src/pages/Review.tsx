@@ -27,6 +27,7 @@ export default function Review() {
   const [narrationError, setNarrationError] = useState('');
   const [rendering, setRendering] = useState(false);
   const [renderError, setRenderError] = useState('');
+  const [burnSubtitles, setBurnSubtitles] = useState(false);
 
   const hasNarration = syncManifest.length > 0 && syncManifest.length === segments.length;
 
@@ -89,7 +90,7 @@ export default function Review() {
     setRendering(true);
     setRenderError('');
     try {
-      const { downloadUrl } = await renderExport(sessionId, syncManifest, videoUrl);
+      const { downloadUrl } = await renderExport(sessionId, syncManifest, videoUrl, burnSubtitles, segments);
       setDownloadUrl(downloadUrl);
       navigate('/export');
     } catch (e) {
@@ -161,6 +162,30 @@ export default function Review() {
 
             {hasNarration && (
               <>
+                {/* Subtitle toggle */}
+                <button
+                  onClick={() => setBurnSubtitles((v) => !v)}
+                  className="flex items-center gap-3 p-3 rounded-xl text-sm transition-all self-start"
+                  style={{
+                    background: burnSubtitles ? 'rgba(0,212,255,0.08)' : 'rgba(255,255,255,0.02)',
+                    border: `1px solid ${burnSubtitles ? 'rgba(0,212,255,0.25)' : 'rgba(255,255,255,0.06)'}`,
+                  }}
+                >
+                  <div className="w-9 h-5 rounded-full relative flex-shrink-0 transition-all"
+                    style={{ background: burnSubtitles ? 'rgba(0,212,255,0.6)' : 'rgba(255,255,255,0.12)' }}>
+                    <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all"
+                      style={{ left: burnSubtitles ? '18px' : '2px' }} />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-medium" style={{ color: burnSubtitles ? '#00d4ff' : 'rgba(255,255,255,0.6)' }}>
+                      Burn subtitles into video
+                    </p>
+                    <p className="text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                      Captions appear on screen — great for course platforms
+                    </p>
+                  </div>
+                </button>
+
                 <button
                   onClick={handleRender}
                   disabled={rendering}

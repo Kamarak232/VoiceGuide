@@ -16,36 +16,66 @@ export interface ClickEvent {
   timestamp: number; // ms
 }
 
+export interface SubtitleEntry {
+  step: number;
+  text: string;
+  startTime: number;
+  endTime: number;
+}
+
+function toSrtTime(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  const ms = Math.round((seconds % 1) * 1000);
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')},${String(ms).padStart(3, '0')}`;
+}
+
+export function generateSRT(subtitles: SubtitleEntry[], outputPath: string): void {
+  const content = subtitles.map((s, i) =>
+    `${i + 1}\n${toSrtTime(s.startTime)} --> ${toSrtTime(s.endTime)}\n${s.text}\n`
+  ).join('\n');
+  fs.writeFileSync(outputPath, content, 'utf8');
+}
+
 export function renderFinalVideo(
   screenVideoPath: string,
   syncManifest: SyncEntry[],
   _clickLog: ClickEvent[],
-  outputPath: string
+  outputPath: string,
+  srtPath?: string
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const cmd = ffmpeg(screenVideoPath);
 
     syncManifest.forEach((entry) => cmd.input(entry.audioFile));
 
-    // Delay each clip to start at its video timestamp — no trimming so TTS plays fully
     const adelayFilters = syncManifest.map((entry, i) => {
       const delayMs = Math.round(entry.videoStartTime * 1000);
       return `[${i + 1}:a]adelay=${delayMs}|${delayMs}[a${i + 1}]`;
     });
 
     const mixInputs = syncManifest.map((_, i) => `[a${i + 1}]`).join('');
-    // dropout_transition=0 prevents volume dips when clips overlap; duration=longest keeps audio past video end
     const amixFilter = `${mixInputs}amix=inputs=${syncManifest.length}:duration=longest:dropout_transition=0[aout]`;
 
-    const filterComplex = [...adelayFilters, amixFilter].join(';');
+    let videoFilter = '';
+    if (srtPath) {
+      const escapedPath = srtPath.replace(/\\/g, '/').replace(/:/g, '\\:');
+      videoFilter = `subtitles=${escapedPath}:force_style='FontSize=16,PrimaryColour=&H00ffffff,OutlineColour=&H00000000,Outline=2,Bold=1,MarginV=25'`;
+    }
 
-    // -shortest ends the output when the VIDEO track ends (not when audio ends)
+    const filterParts = [...adelayFilters, amixFilter];
+    if (videoFilter) filterParts.push(`[0:v]${videoFilter}[vout]`);
+    const filterComplex = filterParts.join(';');
+
+    const mapVideo = srtPath ? '-map [vout]' : '-map 0:v';
+
     cmd
       .complexFilter(filterComplex)
-      .outputOptions(['-map 0:v', '-map [aout]', '-c:v libx264', '-c:a aac', '-crf 23', '-shortest'])
+      .outputOptions([mapVideo, '-map [aout]', '-c:v libx264', '-c:a aac', '-crf 23', '-shortest'])
       .output(outputPath)
-      .on('end', () => resolve())
-      .on('error', (err) => reject(err))
+      .on('end', () => { if (srtPath && fs.existsSync(srtPath)) fs.unlinkSync(srtPath); resolve(); })
+      .on('error', (err) => { if (srtPath && fs.existsSync(srtPath)) fs.unlinkSync(srtPath); reject(err); })
       .run();
   });
 }

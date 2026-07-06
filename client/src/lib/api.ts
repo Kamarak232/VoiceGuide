@@ -70,12 +70,14 @@ export async function uploadStepRecording(
 export async function renderExport(
   sessionId: string,
   syncManifest: import('../store/useStore').SyncEntry[],
-  videoUrl: string
+  videoUrl: string,
+  burnSubtitles?: boolean,
+  segments?: import('../store/useStore').ScriptSegment[]
 ): Promise<{ downloadUrl: string }> {
   const res = await fetch(`${BASE}/export/render`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sessionId, syncManifest, videoUrl: videoUrl.replace(BASE, '') }),
+    body: JSON.stringify({ sessionId, syncManifest, videoUrl: videoUrl.replace(BASE, ''), burnSubtitles, segments }),
   });
   if (!res.ok) throw new Error(await res.text());
   const data = await res.json();

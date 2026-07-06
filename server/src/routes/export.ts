@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { renderFinalVideo, SyncEntry } from '../services/ffmpeg';
+import { renderFinalVideo, generateSRT, SyncEntry, SubtitleEntry } from '../services/ffmpeg';
 import path from 'path';
 import fs from 'fs';
 
@@ -8,10 +8,12 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const router = Router();
 
 router.post('/render', async (req: Request, res: Response) => {
-  const { sessionId, syncManifest, videoUrl } = req.body as {
+  const { sessionId, syncManifest, videoUrl, burnSubtitles, segments } = req.body as {
     sessionId: string;
     syncManifest: SyncEntry[];
     videoUrl: string;
+    burnSubtitles?: boolean;
+    segments?: { stepNumber: number; text: string }[];
   };
 
   if (!sessionId || !syncManifest || !videoUrl) {
@@ -37,7 +39,22 @@ router.post('/render', async (req: Request, res: Response) => {
 
   const outputPath = path.join(__dirname, '../../../outputs', `session-${sessionId}-final.mp4`);
 
-  await renderFinalVideo(screenVideoPath, resolvedManifest, [], outputPath);
+  let srtPath: string | undefined;
+  if (burnSubtitles && segments && segments.length > 0) {
+    srtPath = path.join(__dirname, '../../../outputs', `session-${sessionId}.srt`);
+    const subtitleEntries: SubtitleEntry[] = resolvedManifest.map((entry) => {
+      const seg = segments.find((s) => s.stepNumber === entry.step);
+      return {
+        step: entry.step,
+        text: seg?.text ?? '',
+        startTime: entry.videoStartTime,
+        endTime: entry.videoStartTime + entry.audioDuration,
+      };
+    }).filter((e) => e.text);
+    generateSRT(subtitleEntries, srtPath);
+  }
+
+  await renderFinalVideo(screenVideoPath, resolvedManifest, [], outputPath, srtPath);
 
   res.json({ downloadUrl: `/outputs/session-${sessionId}-final.mp4` });
 });
