@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import ScriptEditor from '../components/ScriptEditor';
 import VideoPreview from '../components/VideoPreview';
-import { synthesiseStep, renderExport } from '../lib/api';
+import { synthesiseStep, renderExport, uploadStepRecording } from '../lib/api';
 import { useState } from 'react';
 import { ScriptSegment, SyncEntry } from '../store/useStore';
 import BackButton from '../components/BackButton';
@@ -64,6 +64,16 @@ export default function Review() {
     }
   }
 
+  async function handleRecordStep(seg: ScriptSegment, blob: Blob) {
+    const result = await uploadStepRecording(blob, sessionId, seg.stepNumber);
+    updateSyncEntry({
+      step: seg.stepNumber,
+      audioFile: result.audioFile,
+      audioDuration: result.audioDuration,
+      videoStartTime: seg.videoStartTime,
+    });
+  }
+
   async function handleRegenerateAudio(seg: ScriptSegment) {
     const result = await synthesiseStep(seg.text, voiceId, sessionId, seg.stepNumber);
     updateSyncEntry({
@@ -113,6 +123,7 @@ export default function Review() {
             syncManifest={syncManifest}
             onUpdateText={updateSegmentText}
             onRegenerateAudio={handleRegenerateAudio}
+            onRecordStep={handleRecordStep}
           />
 
           <div className="mt-8 flex flex-col gap-3">

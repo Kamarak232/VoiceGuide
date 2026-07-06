@@ -52,6 +52,21 @@ export async function synthesiseStep(
   return { ...data, audioFile: `${BASE}${data.audioFile}` };
 }
 
+export async function uploadStepRecording(
+  blob: Blob,
+  sessionId: string,
+  step: number
+): Promise<{ audioFile: string; audioDuration: number }> {
+  const form = new FormData();
+  form.append('audio', blob, 'step-recording.webm');
+  form.append('sessionId', sessionId);
+  form.append('step', String(step));
+  const res = await fetch(`${BASE}/voice/record-step`, { method: 'POST', body: form });
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json();
+  return { ...data, audioFile: `${BASE}${data.audioFile}` };
+}
+
 export async function renderExport(
   sessionId: string,
   syncManifest: import('../store/useStore').SyncEntry[],

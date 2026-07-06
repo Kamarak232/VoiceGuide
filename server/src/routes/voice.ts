@@ -57,6 +57,33 @@ router.post('/clone', upload.single('audio'), async (req: Request, res: Response
   }
 });
 
+function getAudioDuration(filePath: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    ffmpeg.ffprobe(filePath, (err, meta) => {
+      if (err) reject(err);
+      else resolve(meta.format.duration ?? 0);
+    });
+  });
+}
+
+router.post('/record-step', upload.single('audio'), async (req: Request, res: Response) => {
+  if (!req.file) { res.status(400).json({ error: 'No audio uploaded.' }); return; }
+  const { sessionId, step } = req.body as { sessionId: string; step: string };
+  if (!sessionId || !step) { res.status(400).json({ error: 'sessionId and step are required.' }); return; }
+
+  const rawPath = req.file.path;
+  const outputFile = path.join(__dirname, '../../../outputs', `session-${sessionId}-step-${step}.mp3`);
+  try {
+    await convertToMp3(rawPath, outputFile);
+    const audioDuration = await getAudioDuration(outputFile);
+    res.json({ audioFile: `/outputs/session-${sessionId}-step-${step}.mp3`, audioDuration });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message || 'Failed to process recording.' });
+  } finally {
+    if (fs.existsSync(rawPath)) fs.unlinkSync(rawPath);
+  }
+});
+
 router.post('/synthesise', async (req: Request, res: Response) => {
   const { text, voiceId, sessionId, step } = req.body as {
     text: string;
