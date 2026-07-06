@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import VoiceSampleRecorder from '../components/VoiceSampleRecorder';
 import { useStore, SavedVoice } from '../store/useStore';
 import { cloneVoice } from '../lib/api';
+import { friendlyError } from '../lib/errors';
 
 type CloneStatus = 'idle' | 'uploading' | 'naming' | 'error';
 
@@ -49,10 +50,8 @@ export default function Onboarding() {
       setPendingVoiceId(newId);
       setVoiceName('My Voice');
       setCloneStatus('naming');
-    } catch (e: any) {
-      let msg = e?.message ?? 'Failed to clone voice.';
-      try { msg = JSON.parse(msg)?.error ?? msg; } catch {}
-      setCloneError(msg);
+    } catch (e) {
+      setCloneError(friendlyError(e));
       setCloneStatus('idle');
     }
   }

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { processRecording } from '../lib/api';
 import BackButton from '../components/BackButton';
+import { friendlyError } from '../lib/errors';
 
 interface ClickEvent {
   x: number;
@@ -133,12 +134,7 @@ export default function Record() {
       navigate('/review');
     } catch (e) {
       stageTimers.forEach(clearTimeout);
-      const msg = e instanceof Error ? e.message : '';
-      if (msg.includes('fetch') || msg === '') {
-        setError('Could not reach the server. Wait 30 seconds and try again — the server may be waking up.');
-      } else {
-        setError(msg || 'Processing failed. Please try again.');
-      }
+      setError(friendlyError(e));
       setStatus('error');
     }
   }

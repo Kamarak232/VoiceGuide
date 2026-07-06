@@ -3,6 +3,7 @@ import { useStore } from '../store/useStore';
 import ScriptEditor from '../components/ScriptEditor';
 import VideoPreview from '../components/VideoPreview';
 import { synthesiseStep, renderExport, uploadStepRecording } from '../lib/api';
+import { friendlyError } from '../lib/errors';
 import { useState } from 'react';
 import { ScriptSegment, SyncEntry } from '../store/useStore';
 import BackButton from '../components/BackButton';
@@ -59,7 +60,7 @@ export default function Review() {
       setNarrationStatus('done');
     } catch (e) {
       setSyncManifest(entries);
-      setNarrationError(e instanceof Error ? e.message : 'Narration generation failed. Click Generate to retry remaining steps.');
+      setNarrationError(friendlyError(e));
       setNarrationStatus('error');
     }
   }
@@ -92,7 +93,7 @@ export default function Review() {
       setDownloadUrl(downloadUrl);
       navigate('/export');
     } catch (e) {
-      setRenderError(e instanceof Error ? e.message : 'Render failed.');
+      setRenderError(friendlyError(e));
       setRendering(false);
     }
   }
