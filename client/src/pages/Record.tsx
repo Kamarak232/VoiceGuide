@@ -13,19 +13,19 @@ interface ClickEvent {
 type Status =
   | 'idle'
   | 'recording'
+  | 'uploading'
   | 'processing-frames'
+  | 'processing-ai'
   | 'processing-script'
   | 'done'
   | 'error';
 
-const STATUS_LABELS: Record<Status, string> = {
-  idle: '',
-  recording: 'Recording…',
-  'processing-frames': 'Extracting keyframes…',
-  'processing-script': 'Generating script with AI…',
-  done: 'Done!',
-  error: 'Something went wrong.',
-};
+const PROCESSING_STAGES: { key: Status; label: string; detail: string; durationMs: number }[] = [
+  { key: 'uploading',         label: 'Uploading recording',      detail: 'Sending your screen recording to the server…',          durationMs: 6000  },
+  { key: 'processing-frames', label: 'Extracting keyframes',     detail: 'Pulling one screenshot every 5 seconds…',               durationMs: 10000 },
+  { key: 'processing-ai',     label: 'Analysing with AI',        detail: 'Claude is watching your recording and taking notes…',   durationMs: 25000 },
+  { key: 'processing-script', label: 'Writing your script',      detail: 'Turning the analysis into step-by-step narration…',     durationMs: 12000 },
+];
 
 export default function Record() {
   const navigate = useNavigate();
@@ -96,10 +96,23 @@ export default function Record() {
     const screenBlob = new Blob(screenChunks.current, { type: 'video/webm' });
     const narrationBlob = new Blob(narrationChunks.current, { type: 'audio/webm' });
 
-    setStatus('processing-frames');
+    setStatus('uploading');
     setError('');
 
-    const stageTimer = setTimeout(() => setStatus('processing-script'), 5000);
+    const stageTimers: ReturnType<typeof setTimeout>[] = [];
+    let elapsed = 0;
+    for (const stage of PROCESSING_STAGES.slice(1)) {
+      elapsed += PROCESSING_STAGES[PROCESSING_STAGES.findIndex(s => s.key === (elapsed === 0 ? 'uploading' : stage.key)) - 1]?.durationMs ?? 6000;
+      stageTimers.push(setTimeout(() => setStatus(stage.key), elapsed));
+    }
+    // simpler: just schedule each stage in sequence
+    stageTimers.length = 0;
+    let delay = PROCESSING_STAGES[0].durationMs;
+    for (let i = 1; i < PROCESSING_STAGES.length; i++) {
+      const key = PROCESSING_STAGES[i].key;
+      stageTimers.push(setTimeout(() => setStatus(key), delay));
+      delay += PROCESSING_STAGES[i].durationMs;
+    }
 
     try {
       const result = await processRecording(
@@ -109,7 +122,7 @@ export default function Record() {
         clickLog.current,
         voiceId
       );
-      clearTimeout(stageTimer);
+      stageTimers.forEach(clearTimeout);
 
       setSessionId(result.sessionId);
       setSegments(result.segments);
@@ -119,14 +132,22 @@ export default function Record() {
       setStatus('done');
       navigate('/review');
     } catch (e) {
-      clearTimeout(stageTimer);
-      setError(e instanceof Error ? e.message : 'Processing failed.');
+      stageTimers.forEach(clearTimeout);
+      const msg = e instanceof Error ? e.message : '';
+      if (msg.includes('fetch') || msg === '') {
+        setError('Could not reach the server. Wait 30 seconds and try again — the server may be waking up.');
+      } else {
+        setError(msg || 'Processing failed. Please try again.');
+      }
       setStatus('error');
     }
   }
 
   const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-  const isProcessing = status === 'processing-frames' || status === 'processing-script';
+  const isProcessing = ['uploading', 'processing-frames', 'processing-ai', 'processing-script'].includes(status);
+  const currentStageIndex = PROCESSING_STAGES.findIndex(s => s.key === status);
+  const progressPct = isProcessing ? Math.round(((currentStageIndex + 0.5) / PROCESSING_STAGES.length) * 100) : 0;
+  const currentStage = PROCESSING_STAGES[currentStageIndex];
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-16">
@@ -166,42 +187,55 @@ export default function Record() {
       )}
 
       {isProcessing && (
-        <div className="flex flex-col gap-6">
-          <div className="flex flex-col gap-3">
-            {(['processing-frames', 'processing-script'] as const).map((s) => {
-              const isActive = status === s;
-              const isDone = status === 'processing-script' && s === 'processing-frames';
+        <div className="flex flex-col gap-8 max-w-md">
+          {/* Current stage hero */}
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-full border-2 flex-shrink-0 flex items-center justify-center"
+              style={{ borderColor: '#00d4ff', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
+            <div>
+              <p className="text-white font-semibold">{currentStage?.label}…</p>
+              <p className="text-sm text-dim">{currentStage?.detail}</p>
+            </div>
+          </div>
+
+          {/* Progress bar */}
+          <div className="flex flex-col gap-2">
+            <div className="w-full rounded-full h-1.5" style={{ background: 'rgba(255,255,255,0.06)' }}>
+              <div
+                className="h-1.5 rounded-full transition-all duration-[1500ms]"
+                style={{
+                  width: `${progressPct}%`,
+                  background: 'linear-gradient(90deg, #00d4ff, #b44dff)',
+                  boxShadow: '0 0 10px rgba(0,212,255,0.5)',
+                }}
+              />
+            </div>
+            <p className="text-xs text-dim text-right">{progressPct}%</p>
+          </div>
+
+          {/* Stage checklist */}
+          <div className="flex flex-col gap-2">
+            {PROCESSING_STAGES.map((stage, i) => {
+              const done = i < currentStageIndex;
+              const active = i === currentStageIndex;
               return (
-                <div key={s} className="flex items-center gap-3">
-                  <div
-                    className="w-4 h-4 rounded-full border-2 flex-shrink-0"
+                <div key={stage.key} className="flex items-center gap-3">
+                  <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-xs"
                     style={{
-                      borderColor: isDone ? '#00d4ff' : isActive ? '#00d4ff' : 'rgba(255,255,255,0.1)',
-                      borderTopColor: isActive ? 'transparent' : undefined,
-                      animation: isActive ? 'spin 0.8s linear infinite' : undefined,
-                      background: isDone ? '#00d4ff22' : undefined,
-                    }}
-                  />
-                  <span className="text-sm" style={{ color: isActive ? 'white' : isDone ? '#00d4ff88' : 'rgba(255,255,255,0.25)' }}>
-                    {STATUS_LABELS[s]}
+                      background: done ? 'rgba(0,212,255,0.15)' : active ? 'rgba(0,212,255,0.08)' : 'rgba(255,255,255,0.03)',
+                      border: `1px solid ${done ? 'rgba(0,212,255,0.4)' : active ? 'rgba(0,212,255,0.25)' : 'rgba(255,255,255,0.08)'}`,
+                    }}>
+                    {done ? <span style={{ color: '#00d4ff' }}>✓</span> : <span style={{ color: active ? '#00d4ff' : 'rgba(255,255,255,0.2)' }}>{i + 1}</span>}
+                  </div>
+                  <span className="text-sm" style={{ color: done ? 'rgba(0,212,255,0.7)' : active ? 'white' : 'rgba(255,255,255,0.25)' }}>
+                    {stage.label}
                   </span>
                 </div>
               );
             })}
           </div>
-          <div className="w-full rounded-full h-1" style={{ background: 'rgba(255,255,255,0.06)' }}>
-            <div
-              className="h-1 rounded-full transition-all duration-1000"
-              style={{
-                width: status === 'processing-frames' ? '40%' : '80%',
-                background: 'linear-gradient(90deg, #00d4ff, #b44dff)',
-                boxShadow: '0 0 8px rgba(0,212,255,0.6)',
-              }}
-            />
-          </div>
-          <p className="text-xs text-dim">
-            A 3–5 minute recording typically takes under 60 seconds to process.
-          </p>
+
+          <p className="text-xs text-dim">A 3–5 minute recording typically takes under 60 seconds.</p>
         </div>
       )}
 
