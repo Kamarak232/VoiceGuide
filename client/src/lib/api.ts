@@ -32,7 +32,8 @@ export async function processRecording(
 
   const res = await fetch(`${BASE}/recording/process`, { method: 'POST', body: form });
   if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  const data = await res.json();
+  return { ...data, videoUrl: `${BASE}${data.videoUrl}` };
 }
 
 export async function synthesiseStep(
@@ -47,7 +48,8 @@ export async function synthesiseStep(
     body: JSON.stringify({ text, voiceId, sessionId, step }),
   });
   if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  const data = await res.json();
+  return { ...data, audioFile: `${BASE}${data.audioFile}` };
 }
 
 export async function renderExport(
@@ -58,8 +60,9 @@ export async function renderExport(
   const res = await fetch(`${BASE}/export/render`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sessionId, syncManifest, videoUrl }),
+    body: JSON.stringify({ sessionId, syncManifest, videoUrl: videoUrl.replace(BASE, '') }),
   });
   if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  const data = await res.json();
+  return { downloadUrl: `${BASE}${data.downloadUrl}` };
 }
