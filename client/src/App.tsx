@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, NavLink, Link } from 'react-router-dom';
 import Home from './pages/Home';
 import Onboarding from './pages/Onboarding';
 import Setup from './pages/Setup';
@@ -18,12 +18,13 @@ function Nav() {
       }}
       className="sticky top-0 z-50 px-6 py-3 flex items-center gap-8"
     >
-      <span
+      <Link
+        to="/"
         className="font-bold text-lg tracking-tight"
-        style={{ background: 'linear-gradient(90deg, #00d4ff, #b44dff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}
+        style={{ background: 'linear-gradient(90deg, #00d4ff, #b44dff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', textDecoration: 'none' }}
       >
         VoiceGuide
-      </span>
+      </Link>
       <div className="flex gap-1 text-sm">
         {[
           { to: '/onboarding', label: 'Voice Setup' },
