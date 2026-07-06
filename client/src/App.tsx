@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate, NavLink } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
+import Home from './pages/Home';
 import Onboarding from './pages/Onboarding';
 import Setup from './pages/Setup';
 import Record from './pages/Record';
@@ -64,7 +65,7 @@ export default function App() {
       <Nav />
       <main className="min-h-screen">
         <Routes>
-          <Route path="/" element={<Navigate to="/onboarding" replace />} />
+          <Route path="/" element={<Home />} />
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/setup" element={<Setup />} />
           <Route path="/record" element={<Record />} />
