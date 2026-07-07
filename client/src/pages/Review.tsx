@@ -29,6 +29,7 @@ export default function Review() {
   const [narrationProgress, setNarrationProgress] = useState(0);
   const [narrationError, setNarrationError] = useState('');
   const [rendering, setRendering] = useState(false);
+  const [renderLabel, setRenderLabel] = useState('Rendering final video…');
   const [renderError, setRenderError] = useState('');
   const [burnSubtitles, setBurnSubtitles] = useState(false);
   const [addTitleCard, setAddTitleCard] = useState(false);
@@ -106,7 +107,7 @@ export default function Review() {
       const titleCardPayload = addTitleCard && cardTitle.trim()
         ? { title: cardTitle.trim(), subtitle: cardSubtitle.trim() }
         : undefined;
-      const { downloadUrl } = await renderExport(sessionId, syncManifest, videoUrl, burnSubtitles, segments, titleCardPayload);
+      const { downloadUrl } = await renderExport(sessionId, syncManifest, videoUrl, burnSubtitles, segments, titleCardPayload, setRenderLabel);
       setDownloadUrl(downloadUrl);
       navigate('/export');
     } catch (e) {
@@ -275,7 +276,7 @@ export default function Review() {
                   {rendering ? (
                     <span className="flex items-center gap-2">
                       <span className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#b44dff', borderTopColor: 'transparent' }} />
-                      Rendering final video…
+                      {renderLabel}
                     </span>
                   ) : 'Render Final Video →'}
                 </button>
