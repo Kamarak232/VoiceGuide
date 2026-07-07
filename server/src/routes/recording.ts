@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { upload } from '../middleware/upload';
 import { generateScriptFromKeyframes, VideoContext } from '../services/scriptGen';
 import { extractKeyframes, extractFallbackFrames, getVideoDuration, trimVideo } from '../services/ffmpeg';
+import { uploadFile, urlToKey } from '../services/r2';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs';
@@ -69,11 +70,18 @@ router.post('/process', recordingUpload, async (req: Request, res: Response) => 
     const segments = await generateScriptFromKeyframes(result.paths, result.timestamps, videoContext, videoDuration);
     console.log(`[process] got ${segments.length} segments`);
 
+    const videoUrl = `/uploads/${path.basename(screenPath)}`;
+
+    // Persist the screen recording to R2 so it survives server restarts
+    await uploadFile(screenPath, urlToKey(videoUrl)).catch((err) =>
+      console.error('[r2] screen upload failed:', err.message)
+    );
+
     res.json({
       sessionId,
       segments,
       syncManifest: [],
-      videoUrl: `/uploads/${path.basename(screenPath)}`,
+      videoUrl,
       videoDuration,
     });
   } catch (e: any) {

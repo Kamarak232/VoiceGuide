@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { upload } from '../middleware/upload';
 import { createVoiceClone, synthesiseWithTimestamps } from '../services/fishaudio';
+import { uploadFile } from '../services/r2';
 import path from 'path';
 import fs from 'fs';
 import ffmpeg from 'fluent-ffmpeg';
@@ -76,6 +77,9 @@ router.post('/record-step', upload.single('audio'), async (req: Request, res: Re
   try {
     await convertToMp3(rawPath, outputFile);
     const audioDuration = await getAudioDuration(outputFile);
+    await uploadFile(outputFile, `outputs/session-${sessionId}-step-${step}.mp3`).catch((err) =>
+      console.error('[r2] audio upload failed:', err.message)
+    );
     res.json({ audioFile: `/outputs/session-${sessionId}-step-${step}.mp3`, audioDuration });
   } catch (e: any) {
     res.status(500).json({ error: e?.message || 'Failed to process recording.' });
@@ -100,6 +104,9 @@ router.post('/synthesise', async (req: Request, res: Response) => {
   const outputFile = path.join(__dirname, '../../../outputs', `session-${sessionId}-step-${step}.mp3`);
   try {
     const result = await synthesiseWithTimestamps(text, voiceId, outputFile);
+    await uploadFile(outputFile, `outputs/session-${sessionId}-step-${step}.mp3`).catch((err) =>
+      console.error('[r2] audio upload failed:', err.message)
+    );
     res.json({ audioFile: `/outputs/session-${sessionId}-step-${step}.mp3`, audioDuration: result.audioDuration });
   } catch (e: any) {
     const raw = e?.response?.data;

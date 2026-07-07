@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { renderFinalVideo, generateSRT, getVideoInfo, generateTitleCard, concatVideos, SyncEntry, SubtitleEntry } from '../services/ffmpeg';
+import { restoreFile, urlToKey } from '../services/r2';
 import path from 'path';
 import fs from 'fs';
 
@@ -29,14 +30,24 @@ router.post('/render', async (req: Request, res: Response) => {
 
   const screenVideoPath = path.join(__dirname, '../../../', videoUrl);
   if (!fs.existsSync(screenVideoPath)) {
-    res.status(404).json({ error: 'Screen recording not found.' });
-    return;
+    console.log('[export] screen not on disk, attempting R2 restore...');
+    const restored = await restoreFile(urlToKey(videoUrl), screenVideoPath);
+    if (!restored) {
+      res.status(404).json({ error: 'Screen recording not found. Please record again.' });
+      return;
+    }
   }
 
-  const resolvedManifest: SyncEntry[] = syncManifest.map((entry) => ({
-    ...entry,
-    audioFile: path.join(__dirname, '../../../outputs', path.basename(entry.audioFile)),
-  }));
+  const resolvedManifest: SyncEntry[] = await Promise.all(
+    syncManifest.map(async (entry) => {
+      const localPath = path.join(__dirname, '../../../outputs', path.basename(entry.audioFile));
+      if (!fs.existsSync(localPath)) {
+        console.log(`[export] audio step ${entry.step} missing, attempting R2 restore...`);
+        await restoreFile(`outputs/${path.basename(entry.audioFile)}`, localPath);
+      }
+      return { ...entry, audioFile: localPath };
+    })
+  );
 
   const outputsDir = path.join(__dirname, '../../../outputs');
   const finalOutputPath = path.join(outputsDir, `session-${sessionId}-final.mp4`);
