@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, NavLink, Link } from 'react-router-dom';
+import { useEffect } from 'react';
 import Home from './pages/Home';
 import Onboarding from './pages/Onboarding';
 import Setup from './pages/Setup';
@@ -7,7 +8,15 @@ import Review from './pages/Review';
 import Export from './pages/Export';
 import { useStore } from './store/useStore';
 
+const BASE = import.meta.env.VITE_API_URL ?? '';
+function useServerWake() {
+  useEffect(() => {
+    fetch(`${BASE}/health`, { method: 'GET' }).catch(() => {});
+  }, []);
+}
+
 function Nav() {
+  useServerWake();
   const voiceId = useStore((s) => s.voiceId);
   return (
     <nav
