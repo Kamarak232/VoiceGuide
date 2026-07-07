@@ -8,6 +8,7 @@ interface Props {
   onRegenerateAudio: (step: ScriptSegment) => Promise<void>;
   onRecordStep: (step: ScriptSegment, blob: Blob) => Promise<void>;
   onReorder: (newOrder: number[]) => void;
+  onPreviewStep?: (seg: ScriptSegment) => Promise<string>;
 }
 
 function formatTime(seconds: number) {
@@ -30,7 +31,7 @@ function DragHandle() {
   );
 }
 
-export default function ScriptEditor({ segments, syncManifest, onUpdateText, onRegenerateAudio, onRecordStep, onReorder }: Props) {
+export default function ScriptEditor({ segments, syncManifest, onUpdateText, onRegenerateAudio, onRecordStep, onReorder, onPreviewStep }: Props) {
   const [regenerating, setRegenerating] = useState<number | null>(null);
   const [regenError, setRegenError] = useState<number | null>(null);
   const [editingStep, setEditingStep] = useState<number | null>(null);
@@ -39,6 +40,10 @@ export default function ScriptEditor({ segments, syncManifest, onUpdateText, onR
   const [uploadingStep, setUploadingStep] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState<number | null>(null);
 
+  const [previewingStep, setPreviewingStep] = useState<number | null>(null);
+  const [previewUrls, setPreviewUrls] = useState<Map<number, string>>(new Map());
+  const [previewErr, setPreviewErr] = useState<number | null>(null);
+
   const [draggingStep, setDraggingStep] = useState<number | null>(null);
   const [dropTarget, setDropTarget] = useState<number | null>(null);
   const [dropAbove, setDropAbove] = useState(true);
@@ -46,6 +51,26 @@ export default function ScriptEditor({ segments, syncManifest, onUpdateText, onR
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── Step preview ───────────────────────────────────────────────
+
+  async function handlePreview(seg: ScriptSegment) {
+    if (!onPreviewStep) return;
+    setPreviewingStep(seg.stepNumber);
+    setPreviewErr(null);
+    try {
+      const url = await onPreviewStep(seg);
+      setPreviewUrls((prev) => new Map(prev).set(seg.stepNumber, url));
+    } catch {
+      setPreviewErr(seg.stepNumber);
+    } finally {
+      setPreviewingStep(null);
+    }
+  }
+
+  function closePreview(stepNumber: number) {
+    setPreviewUrls((prev) => { const m = new Map(prev); m.delete(stepNumber); return m; });
+  }
 
   // ── Drag-and-drop ──────────────────────────────────────────────
 
@@ -219,9 +244,61 @@ export default function ScriptEditor({ segments, syncManifest, onUpdateText, onR
               )}
 
               {syncEntry && (
-                <div className="flex items-center gap-3">
-                  <audio controls src={syncEntry.audioFile} className="h-8 flex-1" style={{ filter: 'invert(1) hue-rotate(180deg)' }} />
-                  <span className="text-xs text-dim">{syncEntry.audioDuration.toFixed(1)}s</span>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-3">
+                    <audio controls src={syncEntry.audioFile} className="h-8 flex-1" style={{ filter: 'invert(1) hue-rotate(180deg)' }} />
+                    <span className="text-xs text-dim">{syncEntry.audioDuration.toFixed(1)}s</span>
+                  </div>
+
+                  {/* Step video preview */}
+                  {previewUrls.get(seg.stepNumber) ? (
+                    <div className="flex flex-col gap-1.5">
+                      <video
+                        src={previewUrls.get(seg.stepNumber)}
+                        controls
+                        className="w-full rounded-lg"
+                        style={{ maxHeight: 160, background: '#000' }}
+                      />
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => handlePreview(seg)}
+                          className="text-xs underline"
+                          style={{ color: 'rgba(180,77,255,0.6)' }}
+                        >
+                          Re-preview
+                        </button>
+                        <button
+                          onClick={() => closePreview(seg.stepNumber)}
+                          className="text-xs underline"
+                          style={{ color: 'rgba(255,255,255,0.25)' }}
+                        >
+                          Close
+                        </button>
+                      </div>
+                    </div>
+                  ) : onPreviewStep && (
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => handlePreview(seg)}
+                        disabled={previewingStep === seg.stepNumber}
+                        className="text-xs flex items-center gap-1.5 transition-colors disabled:opacity-40"
+                        style={{ color: previewingStep === seg.stepNumber ? '#7777aa' : 'rgba(180,77,255,0.6)' }}
+                        onMouseEnter={e => { if (previewingStep !== seg.stepNumber) e.currentTarget.style.color = '#b44dff'; }}
+                        onMouseLeave={e => { if (previewingStep !== seg.stepNumber) e.currentTarget.style.color = 'rgba(180,77,255,0.6)'; }}
+                      >
+                        {previewingStep === seg.stepNumber ? (
+                          <>
+                            <span className="w-3 h-3 border border-t-transparent rounded-full animate-spin inline-block"
+                              style={{ borderColor: 'rgba(180,77,255,0.6)', borderTopColor: 'transparent' }} />
+                            Rendering preview…
+                          </>
+                        ) : '▶ Preview in video'}
+                      </button>
+                      {previewErr === seg.stepNumber && (
+                        <span className="text-xs" style={{ color: 'rgba(255,100,100,0.8)' }}>Failed — try again</span>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 

@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { renderFinalVideo, generateSRT, getVideoInfo, generateTitleCard, concatVideos, SyncEntry, SubtitleEntry } from '../services/ffmpeg';
+import { renderFinalVideo, renderStepPreview, generateSRT, getVideoInfo, generateTitleCard, concatVideos, SyncEntry, SubtitleEntry } from '../services/ffmpeg';
 import { restoreFile, urlToKey } from '../services/r2';
 import path from 'path';
 import fs from 'fs';
@@ -84,6 +84,48 @@ router.post('/render', async (req: Request, res: Response) => {
   }
 
   res.json({ downloadUrl: `/outputs/session-${sessionId}-final.mp4` });
+});
+
+router.post('/preview-step', async (req: Request, res: Response) => {
+  const { sessionId, step, videoUrl, audioFile, videoStartTime, audioDuration } = req.body as {
+    sessionId: string;
+    step: number;
+    videoUrl: string;
+    audioFile: string;
+    videoStartTime: number;
+    audioDuration: number;
+  };
+
+  if (!UUID_RE.test(sessionId)) {
+    res.status(400).json({ error: 'Invalid sessionId.' });
+    return;
+  }
+
+  const screenVideoPath = path.join(__dirname, '../../../', videoUrl);
+  if (!fs.existsSync(screenVideoPath)) {
+    const restored = await restoreFile(urlToKey(videoUrl), screenVideoPath);
+    if (!restored) {
+      res.status(404).json({ error: 'Screen recording not found.' });
+      return;
+    }
+  }
+
+  const audioLocalPath = path.join(__dirname, '../../../outputs', path.basename(audioFile));
+  if (!fs.existsSync(audioLocalPath)) {
+    await restoreFile(`outputs/${path.basename(audioFile)}`, audioLocalPath);
+  }
+  if (!fs.existsSync(audioLocalPath)) {
+    res.status(404).json({ error: 'Audio not found. Generate narration first.' });
+    return;
+  }
+
+  const outputPath = path.join(__dirname, '../../../outputs', `session-${sessionId}-step-${step}-preview.mp4`);
+  try {
+    await renderStepPreview(screenVideoPath, audioLocalPath, videoStartTime, audioDuration + 1.5, outputPath);
+    res.json({ previewUrl: `/outputs/session-${sessionId}-step-${step}-preview.mp4` });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || 'Preview render failed.' });
+  }
 });
 
 export default router;

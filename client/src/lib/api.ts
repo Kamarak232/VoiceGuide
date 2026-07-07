@@ -107,6 +107,31 @@ export async function uploadStepRecording(
   return { ...data, audioFile: `${BASE}${data.audioFile}` };
 }
 
+export async function previewStep(
+  sessionId: string,
+  step: number,
+  videoUrl: string,
+  audioFile: string,
+  videoStartTime: number,
+  audioDuration: number
+): Promise<{ previewUrl: string }> {
+  const res = await fetch(`${BASE}/export/preview-step`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sessionId,
+      step,
+      videoUrl: videoUrl.replace(BASE, ''),
+      audioFile: audioFile.replace(BASE, ''),
+      videoStartTime,
+      audioDuration,
+    }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json();
+  return { previewUrl: `${BASE}${data.previewUrl}` };
+}
+
 export async function renderExport(
   sessionId: string,
   syncManifest: import('../store/useStore').SyncEntry[],

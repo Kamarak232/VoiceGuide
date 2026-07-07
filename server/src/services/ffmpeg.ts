@@ -271,6 +271,35 @@ export function trimVideo(
   });
 }
 
+export function renderStepPreview(
+  videoPath: string,
+  audioPath: string,
+  startTime: number,
+  clipDuration: number,
+  outputPath: string
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    ffmpeg()
+      .input(videoPath)
+      .seekInput(startTime)
+      .input(audioPath)
+      .outputOptions([
+        '-map', '0:v',
+        '-map', '1:a',
+        '-t', String(clipDuration),
+        '-c:v', 'libx264',
+        '-preset', 'fast',
+        '-crf', '28',
+        '-c:a', 'aac',
+        '-movflags', '+faststart',
+      ])
+      .output(outputPath)
+      .on('end', () => resolve())
+      .on('error', (err) => reject(err))
+      .run();
+  });
+}
+
 export function concatVideos(firstPath: string, secondPath: string, outputPath: string): Promise<void> {
   return new Promise((resolve, reject) => {
     ffmpeg()

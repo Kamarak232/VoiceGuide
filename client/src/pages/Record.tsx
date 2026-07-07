@@ -283,6 +283,8 @@ export default function Record() {
     }
   }
 
+  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
   const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   const isProcessing = ['uploading', 'processing-frames', 'processing-ai', 'processing-script'].includes(status);
   const currentStageIndex = PROCESSING_STAGES.findIndex(s => s.key === status);
@@ -292,6 +294,14 @@ export default function Record() {
   return (
     <div className="max-w-2xl mx-auto px-6 py-16">
       {!isProcessing && status !== 'trim' && <BackButton to="/setup" />}
+
+      {isSafari && status === 'idle' && (
+        <div className="mb-6 flex items-start gap-3 p-4 rounded-xl text-sm"
+          style={{ background: 'rgba(255,160,0,0.07)', border: '1px solid rgba(255,160,0,0.2)', color: 'rgba(255,200,80,0.9)' }}>
+          <span className="flex-shrink-0 mt-0.5">⚠️</span>
+          <span>Screen recording doesn't work in Safari. Please open this page in <strong>Chrome</strong> or <strong>Firefox</strong> instead.</span>
+        </div>
+      )}
 
       {status !== 'trim' && (
         <>

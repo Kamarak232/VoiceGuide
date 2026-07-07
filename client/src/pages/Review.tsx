@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import ScriptEditor from '../components/ScriptEditor';
 import VideoPreview from '../components/VideoPreview';
-import { synthesiseStep, renderExport, uploadStepRecording } from '../lib/api';
+import { synthesiseStep, renderExport, uploadStepRecording, previewStep } from '../lib/api';
 import { friendlyError } from '../lib/errors';
 import { useState } from 'react';
 import { ScriptSegment, SyncEntry } from '../store/useStore';
@@ -82,6 +82,13 @@ export default function Review() {
     });
   }
 
+  async function handlePreviewStep(seg: ScriptSegment): Promise<string> {
+    const entry = syncManifest.find((e) => e.step === seg.stepNumber);
+    if (!entry) throw new Error('No audio for this step yet.');
+    const { previewUrl } = await previewStep(sessionId, seg.stepNumber, videoUrl, entry.audioFile, entry.videoStartTime, entry.audioDuration);
+    return previewUrl;
+  }
+
   async function handleRegenerateAudio(seg: ScriptSegment) {
     const result = await synthesiseStep(seg.text, voiceId, sessionId, seg.stepNumber);
     updateSyncEntry({
@@ -136,6 +143,7 @@ export default function Review() {
             onRegenerateAudio={handleRegenerateAudio}
             onRecordStep={handleRecordStep}
             onReorder={reorderSegments}
+            onPreviewStep={handlePreviewStep}
           />
 
           <div className="mt-8 flex flex-col gap-3">
