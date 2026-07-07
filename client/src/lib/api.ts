@@ -23,7 +23,8 @@ export async function processRecording(
   clickLog: { x: number; y: number; timestamp: number }[],
   voiceId: string,
   trimStart?: number,
-  trimEnd?: number
+  trimEnd?: number,
+  onProgress?: (stage: string) => void
 ): Promise<ProcessResponse> {
   const form = new FormData();
   form.append('screen', screenBlob, 'screen.webm');
@@ -36,8 +37,43 @@ export async function processRecording(
 
   const res = await fetch(`${BASE}/recording/process`, { method: 'POST', body: form });
   if (!res.ok) throw new Error(await res.text());
-  const data = await res.json();
-  return { ...data, videoUrl: `${BASE}${data.videoUrl}` };
+
+  // Server streams SSE events — parse the response body as a stream
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let result: ProcessResponse | null = null;
+  let serverError: string | null = null;
+
+  outer: while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const lines = buffer.split('\n');
+    buffer = lines.pop()!;
+
+    let eventName = '';
+    let eventData = '';
+    for (const line of lines) {
+      if (line.startsWith('event: ')) { eventName = line.slice(7).trim(); eventData = ''; }
+      else if (line.startsWith('data: ')) { eventData = line.slice(6).trim(); }
+      else if (line === '' && eventName) {
+        try {
+          const parsed = JSON.parse(eventData);
+          if (eventName === 'progress') onProgress?.(parsed.stage);
+          else if (eventName === 'done') { result = { ...parsed, videoUrl: `${BASE}${parsed.videoUrl}` }; break outer; }
+          else if (eventName === 'error') { serverError = parsed.error; break outer; }
+        } catch { /* ignore malformed event */ }
+        eventName = '';
+        eventData = '';
+      }
+    }
+  }
+
+  if (serverError) throw new Error(serverError);
+  if (!result) throw new Error('No response received from server.');
+  return result;
 }
 
 export async function synthesiseStep(

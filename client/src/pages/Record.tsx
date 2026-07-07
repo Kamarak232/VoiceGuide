@@ -22,11 +22,11 @@ type Status =
   | 'done'
   | 'error';
 
-const PROCESSING_STAGES: { key: Status; label: string; detail: string; durationMs: number }[] = [
-  { key: 'uploading',         label: 'Uploading recording',   detail: 'Sending your screen recording to the server…',        durationMs: 6000  },
-  { key: 'processing-frames', label: 'Extracting keyframes',  detail: 'Pulling one screenshot every 5 seconds…',             durationMs: 10000 },
-  { key: 'processing-ai',     label: 'Analysing with AI',     detail: 'Claude is watching your recording and taking notes…', durationMs: 25000 },
-  { key: 'processing-script', label: 'Writing your script',   detail: 'Turning the analysis into step-by-step narration…',   durationMs: 12000 },
+const PROCESSING_STAGES: { key: Status; label: string; detail: string }[] = [
+  { key: 'uploading',         label: 'Uploading recording',  detail: 'Sending your screen recording to the server…'        },
+  { key: 'processing-frames', label: 'Extracting keyframes', detail: 'Pulling one screenshot every 5 seconds…'             },
+  { key: 'processing-ai',     label: 'Analysing with AI',    detail: 'Claude is watching your recording and taking notes…' },
+  { key: 'processing-script', label: 'Writing your script',  detail: 'Turning the analysis into step-by-step narration…'  },
 ];
 
 const fmtSec = (s: number) =>
@@ -242,20 +242,18 @@ export default function Record() {
     setStatus('trim');
   }
 
+  const STAGE_MAP: Record<string, Status> = {
+    extracting: 'processing-frames',
+    analysing:  'processing-ai',
+    saving:     'processing-script',
+  };
+
   async function handleProcess() {
     const screenBlob = screenBlobRef.current;
     if (!screenBlob) return;
 
     setStatus('uploading');
     setError('');
-
-    const stageTimers: ReturnType<typeof setTimeout>[] = [];
-    let delay = PROCESSING_STAGES[0].durationMs;
-    for (let i = 1; i < PROCESSING_STAGES.length; i++) {
-      const key = PROCESSING_STAGES[i].key;
-      stageTimers.push(setTimeout(() => setStatus(key), delay));
-      delay += PROCESSING_STAGES[i].durationMs;
-    }
 
     const ts = trimStart > 0 ? trimStart : undefined;
     const te = trimEnd > 0 && trimEnd < trimDuration ? trimEnd : undefined;
@@ -268,9 +266,9 @@ export default function Record() {
         clickLog.current,
         voiceId,
         ts,
-        te
+        te,
+        (stage) => setStatus(STAGE_MAP[stage] ?? 'processing-frames')
       );
-      stageTimers.forEach(clearTimeout);
 
       setSessionId(result.sessionId);
       setSegments(result.segments);
@@ -280,7 +278,6 @@ export default function Record() {
       setStatus('done');
       navigate('/review');
     } catch (e) {
-      stageTimers.forEach(clearTimeout);
       setError(friendlyError(e));
       setStatus('error');
     }
