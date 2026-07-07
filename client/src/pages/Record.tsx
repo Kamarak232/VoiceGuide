@@ -54,7 +54,7 @@ function TrimTimeline({
     return Math.max(0, Math.min(duration, ((clientX - rect.left) / rect.width) * duration));
   }
 
-  function handlePointerDown(which: 'start' | 'end') {
+  function handlePointerDown() {
     return (e: React.PointerEvent<HTMLDivElement>) => {
       e.preventDefault();
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -85,7 +85,7 @@ function TrimTimeline({
 
         {/* Start handle */}
         <div
-          onPointerDown={handlePointerDown('start')}
+          onPointerDown={handlePointerDown()}
           onPointerMove={handlePointerMove('start')}
           className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-5 h-5 rounded-full z-10"
           style={{
@@ -99,7 +99,7 @@ function TrimTimeline({
 
         {/* End handle */}
         <div
-          onPointerDown={handlePointerDown('end')}
+          onPointerDown={handlePointerDown()}
           onPointerMove={handlePointerMove('end')}
           className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-5 h-5 rounded-full z-10"
           style={{
@@ -162,6 +162,7 @@ export default function Record() {
   const blobUrlRef = useRef('');
   const previewVideoRef = useRef<HTMLVideoElement>(null);
   const secondsRef = useRef(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     secondsRef.current = seconds;
@@ -174,6 +175,18 @@ export default function Record() {
       blobUrlRef.current = '';
     }
   }, [status]);
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    screenBlobRef.current = file;
+    narrationBlobRef.current = null;
+    blobUrlRef.current = URL.createObjectURL(file);
+    setTrimStart(0);
+    setTrimDuration(0);
+    setStatus('trim');
+    e.target.value = '';
+  }
 
   async function startRecording() {
     const [screenStream, micStream] = await Promise.all([
@@ -295,9 +308,34 @@ export default function Record() {
       )}
 
       {status === 'idle' && (
-        <button onClick={startRecording} className="btn-neon">
-          Start Recording
-        </button>
+        <div className="flex flex-col gap-4">
+          <button onClick={startRecording} className="btn-neon self-start">
+            Start Recording
+          </button>
+
+          <div className="flex items-center gap-3 max-w-xs">
+            <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.08)' }} />
+            <span className="text-xs text-dim">or</span>
+            <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.08)' }} />
+          </div>
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="self-start flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium transition-all"
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
+          >
+            ⬆ Upload a recording
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="video/*"
+            className="hidden"
+            onChange={handleFileSelect}
+          />
+        </div>
       )}
 
       {status === 'recording' && (
