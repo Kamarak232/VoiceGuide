@@ -91,21 +91,21 @@ export function renderFinalVideo(
     const mixInputs = syncManifest.map((_, i) => `[a${i + 1}]`).join('');
     const amixFilter = `${mixInputs}amix=inputs=${syncManifest.length}:duration=longest:dropout_transition=0[aout]`;
 
-    let videoFilter = '';
+    // Always normalise pixel format — WebM from MediaRecorder can have
+    // variable or non-yuv420p formats that break the filter network.
+    let videoFilterChain: string;
     if (srtPath) {
       const escapedPath = srtPath.replace(/\\/g, '/').replace(/:/g, '\\:');
-      videoFilter = `subtitles=${escapedPath}:force_style='FontSize=16,PrimaryColour=&H00ffffff,OutlineColour=&H00000000,Outline=2,Bold=1,MarginV=25'`;
+      videoFilterChain = `[0:v]subtitles=${escapedPath}:force_style='FontSize=16,PrimaryColour=&H00ffffff,OutlineColour=&H00000000,Outline=2,Bold=1,MarginV=25'[vsub];[vsub]format=yuv420p[vout]`;
+    } else {
+      videoFilterChain = `[0:v]format=yuv420p[vout]`;
     }
 
-    const filterParts = [...adelayFilters, amixFilter];
-    if (videoFilter) filterParts.push(`[0:v]${videoFilter}[vout]`);
-    const filterComplex = filterParts.join(';');
-
-    const mapVideo = srtPath ? '-map [vout]' : '-map 0:v';
+    const filterComplex = [...adelayFilters, amixFilter, videoFilterChain].join(';');
 
     cmd
       .complexFilter(filterComplex)
-      .outputOptions([mapVideo, '-map [aout]', '-c:v libx264', '-c:a aac', '-crf 23', '-shortest'])
+      .outputOptions(['-map [vout]', '-map [aout]', '-c:v libx264', '-c:a aac', '-crf 23', '-pix_fmt yuv420p', '-shortest'])
       .output(outputPath)
       .on('end', () => { if (srtPath && fs.existsSync(srtPath)) fs.unlinkSync(srtPath); resolve(); })
       .on('error', (err) => { if (srtPath && fs.existsSync(srtPath)) fs.unlinkSync(srtPath); reject(err); })
