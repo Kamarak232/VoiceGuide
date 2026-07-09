@@ -122,9 +122,12 @@ export default function App() {
         clearSession();
         prevUserIdRef.current = null;
       }
-      // Only clear when a DIFFERENT user signs in, not on token refresh of same user
-      if (event === 'SIGNED_IN' && newUserId !== prevUserIdRef.current) {
-        clearSession();
+      if (event === 'SIGNED_IN') {
+        // Only clear when a known previous user is replaced by a different user.
+        // prevUserIdRef is undefined until getSession resolves — skip that first fire.
+        if (prevUserIdRef.current !== undefined && newUserId !== prevUserIdRef.current) {
+          clearSession();
+        }
         prevUserIdRef.current = newUserId;
       }
     });
