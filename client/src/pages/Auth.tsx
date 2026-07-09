@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { promoLogin } from '../lib/api';
 
 export default function Auth() {
   const navigate = useNavigate();
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [promoCode, setPromoCode] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
@@ -17,6 +19,14 @@ export default function Auth() {
     setSuccess('');
     setLoading(true);
     try {
+      // Promo code bypasses email/password entirely
+      if (promoCode.trim()) {
+        const { access_token, refresh_token } = await promoLogin(promoCode.trim());
+        await supabase.auth.setSession({ access_token, refresh_token });
+        navigate('/onboarding');
+        return;
+      }
+
       if (mode === 'signup') {
         const { error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
@@ -90,6 +100,20 @@ export default function Auth() {
               className="w-full rounded-lg px-3 py-2.5 text-sm text-white outline-none transition-all"
               style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', caretColor: '#00d4ff' }}
               onFocus={(e) => (e.target.style.borderColor = 'rgba(0,212,255,0.4)')}
+              onBlur={(e) => (e.target.style.borderColor = 'rgba(255,255,255,0.1)')}
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-dim block mb-1.5">Promo code <span style={{ color: 'rgba(255,255,255,0.25)' }}>(optional)</span></label>
+            <input
+              type="text"
+              value={promoCode}
+              onChange={(e) => setPromoCode(e.target.value)}
+              placeholder="Enter code"
+              className="w-full rounded-lg px-3 py-2.5 text-sm text-white outline-none transition-all"
+              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', caretColor: '#b44dff' }}
+              onFocus={(e) => (e.target.style.borderColor = 'rgba(180,77,255,0.4)')}
               onBlur={(e) => (e.target.style.borderColor = 'rgba(255,255,255,0.1)')}
             />
           </div>

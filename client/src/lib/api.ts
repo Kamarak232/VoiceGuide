@@ -2,6 +2,16 @@ import { getAuthHeader } from './supabase';
 
 const BASE = import.meta.env.VITE_API_URL ?? '';
 
+export async function promoLogin(code: string): Promise<{ access_token: string; refresh_token: string }> {
+  const res = await fetch(`${BASE}/auth/promo-login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 export async function cloneVoice(audioBlob: Blob): Promise<{ voiceId: string }> {
   const form = new FormData();
   form.append('audio', audioBlob, 'voice-sample.webm');

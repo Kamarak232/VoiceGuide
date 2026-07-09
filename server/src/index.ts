@@ -7,6 +7,7 @@ import axios from 'axios';
 import voiceRouter from './routes/voice';
 import recordingRouter from './routes/recording';
 import exportRouter from './routes/export';
+import authRouter from './routes/auth';
 import { requireAuth } from './middleware/auth';
 
 const requiredEnvVars = ['FISH_AUDIO_API_KEY'];
@@ -32,6 +33,7 @@ app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
 app.use('/outputs', express.static(path.join(__dirname, '../../outputs')));
 
+app.use('/auth', authRouter);
 app.use('/voice', requireAuth, voiceRouter);
 app.use('/recording', requireAuth, recordingRouter);
 app.use('/export', requireAuth, exportRouter);
