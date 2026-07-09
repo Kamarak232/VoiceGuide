@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, NavLink, Link, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, NavLink, Link, Navigate } from 'react-router-dom';
 import { useEffect, useState, createContext, useContext } from 'react';
 import type { User } from '@supabase/supabase-js';
 import Home from './pages/Home';
@@ -9,6 +9,7 @@ import Review from './pages/Review';
 import Export from './pages/Export';
 import Auth from './pages/Auth';
 import Pricing from './pages/Pricing';
+import Settings from './pages/Settings';
 import { useStore } from './store/useStore';
 import { supabase } from './lib/supabase';
 
@@ -29,21 +30,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function SignOutButton() {
-  const navigate = useNavigate();
-  async function signOut() {
-    await supabase.auth.signOut();
-    navigate('/auth');
-  }
-  return (
-    <button
-      onClick={signOut}
-      className="text-xs text-dim hover:text-white transition-colors"
-    >
-      Sign out
-    </button>
-  );
-}
 
 function Nav() {
   useServerWake();
@@ -101,7 +87,13 @@ function Nav() {
           </span>
         )}
         {user ? (
-          <SignOutButton />
+          <NavLink to="/settings" className={({ isActive }) =>
+            isActive
+              ? 'text-xs font-medium px-3 py-1.5 rounded-lg text-neon'
+              : 'text-xs font-medium px-3 py-1.5 rounded-lg text-dim hover:text-white transition-colors'
+          }>
+            Account
+          </NavLink>
         ) : (
           <Link to="/auth" className="text-xs font-medium px-3 py-1.5 rounded-lg transition-all"
             style={{ background: 'rgba(0,212,255,0.08)', color: '#00d4ff', border: '1px solid rgba(0,212,255,0.2)' }}>
@@ -146,6 +138,7 @@ export default function App() {
             <Route path="/review" element={<ProtectedRoute><Review /></ProtectedRoute>} />
             <Route path="/export" element={<ProtectedRoute><Export /></ProtectedRoute>} />
             <Route path="/pricing" element={<Pricing />} />
+            <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
           </Routes>
         </main>
       </BrowserRouter>
