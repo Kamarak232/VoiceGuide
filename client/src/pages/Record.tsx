@@ -189,10 +189,25 @@ export default function Record() {
   }
 
   async function startRecording() {
-    const [screenStream, micStream] = await Promise.all([
-      navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }),
-      navigator.mediaDevices.getUserMedia({ audio: true }),
-    ]);
+    let screenStream: MediaStream;
+    let micStream: MediaStream;
+
+    try {
+      screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+    } catch (e) {
+      setError('Screen share was cancelled or blocked. Click "Start Recording" and then choose a screen to share.');
+      setStatus('error');
+      return;
+    }
+
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      screenStream.getTracks().forEach((t) => t.stop());
+      setError('Microphone access was denied. Please allow microphone access in your browser settings and try again.');
+      setStatus('error');
+      return;
+    }
 
     screenChunks.current = [];
     narrationChunks.current = [];
