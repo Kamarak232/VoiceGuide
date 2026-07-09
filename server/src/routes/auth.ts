@@ -41,8 +41,9 @@ router.post('/promo-login', async (req, res) => {
       email_confirm: true,
     });
 
-    if (createErr && !createErr.message.includes('already been registered')) {
-      res.status(500).json({ error: 'Admin account setup failed: ' + createErr.message });
+    if (createErr && !createErr.message?.includes('already been registered')) {
+      const detail = createErr.message || JSON.stringify(createErr);
+      res.status(500).json({ error: 'Admin account setup failed: ' + detail });
       return;
     }
 
