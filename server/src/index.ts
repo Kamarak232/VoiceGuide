@@ -28,7 +28,16 @@ const PORT = process.env.PORT || 3001;
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
   : ['http://localhost:5173'];
-app.use(cors({ origin: allowedOrigins }));
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    // Allow all Vercel preview deployments for this project
+    if (/^https:\/\/voice-guide-14ah.*\.vercel\.app$/.test(origin)) return callback(null, true);
+    callback(new Error(`CORS: origin ${origin} not allowed`));
+  },
+}));
 
 // Stripe webhook needs raw body — must be before express.json()
 app.post('/billing/webhook', express.raw({ type: 'application/json' }), webhookHandler);
