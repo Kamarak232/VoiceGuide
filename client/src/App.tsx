@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, NavLink, Link, Navigate } from 'react-router-dom';
-import { useEffect, useState, createContext, useContext } from 'react';
+import { useEffect, useState, useRef, createContext, useContext } from 'react';
 import type { User } from '@supabase/supabase-js';
 import Home from './pages/Home';
 import Onboarding from './pages/Onboarding';
@@ -108,15 +108,25 @@ function Nav() {
 export default function App() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const clearSession = useStore((s) => s.clearSession);
+  const prevUserIdRef = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
+      prevUserIdRef.current = session?.user?.id ?? null;
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const newUserId = session?.user?.id ?? null;
       setUser(session?.user ?? null);
-      if (event === 'SIGNED_OUT') clearSession();
-      if (event === 'SIGNED_IN') clearSession();
+      if (event === 'SIGNED_OUT') {
+        clearSession();
+        prevUserIdRef.current = null;
+      }
+      // Only clear when a DIFFERENT user signs in, not on token refresh of same user
+      if (event === 'SIGNED_IN' && newUserId !== prevUserIdRef.current) {
+        clearSession();
+        prevUserIdRef.current = newUserId;
+      }
     });
     return () => subscription.unsubscribe();
   }, []);
