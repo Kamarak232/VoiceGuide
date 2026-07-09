@@ -129,6 +129,8 @@ export const useStore = create<Store>()(
       setDownloadUrl: (url) => set({ downloadUrl: url }),
 
       clearSession: () => set({
+        voiceId: '',
+        savedVoices: [],
         sessionId: '',
         segments: [],
         syncManifest: [],
