@@ -8,6 +8,7 @@ import Record from './pages/Record';
 import Review from './pages/Review';
 import Export from './pages/Export';
 import Auth from './pages/Auth';
+import Pricing from './pages/Pricing';
 import { useStore } from './store/useStore';
 import { supabase } from './lib/supabase';
 
@@ -72,6 +73,7 @@ function Nav() {
             { to: '/record', label: 'Record' },
             { to: '/review', label: 'Review' },
             { to: '/export', label: 'Export' },
+            { to: '/pricing', label: 'Pricing' },
           ].map(({ to, label }) => (
             <NavLink
               key={to}
@@ -140,6 +142,7 @@ export default function App() {
             <Route path="/record" element={<ProtectedRoute><Record /></ProtectedRoute>} />
             <Route path="/review" element={<ProtectedRoute><Review /></ProtectedRoute>} />
             <Route path="/export" element={<ProtectedRoute><Export /></ProtectedRoute>} />
+            <Route path="/pricing" element={<Pricing />} />
           </Routes>
         </main>
       </BrowserRouter>

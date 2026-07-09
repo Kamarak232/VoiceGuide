@@ -8,6 +8,7 @@ import voiceRouter from './routes/voice';
 import recordingRouter from './routes/recording';
 import exportRouter from './routes/export';
 import authRouter from './routes/auth';
+import billingRouter, { webhookHandler } from './routes/billing';
 import { requireAuth } from './middleware/auth';
 
 const requiredEnvVars = ['FISH_AUDIO_API_KEY'];
@@ -28,12 +29,17 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
   : ['http://localhost:5173'];
 app.use(cors({ origin: allowedOrigins }));
+
+// Stripe webhook needs raw body — must be before express.json()
+app.post('/billing/webhook', express.raw({ type: 'application/json' }), webhookHandler);
+
 app.use(express.json());
 
 app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
 app.use('/outputs', express.static(path.join(__dirname, '../../outputs')));
 
 app.use('/auth', authRouter);
+app.use('/billing', requireAuth, billingRouter);
 app.use('/voice', requireAuth, voiceRouter);
 app.use('/recording', requireAuth, recordingRouter);
 app.use('/export', requireAuth, exportRouter);

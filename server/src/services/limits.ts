@@ -1,10 +1,10 @@
 import { supabase } from './supabase';
 
-const PLAN_LIMITS: Record<string, number> = {
-  free: 1,
-  starter: 2,
-  pro: 15,
-  team: 20,
+export const PLAN_LIMITS: Record<string, number> = {
+  free: 3,
+  creator: 20,
+  pro: 60,
+  studio: 999999,
 };
 
 export async function checkVideoLimit(
@@ -17,7 +17,7 @@ export async function checkVideoLimit(
     .single();
 
   const plan = (user?.plan as string) ?? 'free';
-  const limit = PLAN_LIMITS[plan] ?? 1;
+  const limit = PLAN_LIMITS[plan] ?? 3;
 
   const startOfMonth = new Date();
   startOfMonth.setDate(1);

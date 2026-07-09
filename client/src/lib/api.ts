@@ -2,6 +2,31 @@ import { getAuthHeader } from './supabase';
 
 const BASE = import.meta.env.VITE_API_URL ?? '';
 
+export async function getBillingStatus(): Promise<{ plan: string; used: number; limit: number; hasStripe: boolean }> {
+  const res = await fetch(`${BASE}/billing/status`, { headers: await getAuthHeader() });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function createCheckout(plan: string): Promise<{ url: string }> {
+  const res = await fetch(`${BASE}/billing/checkout`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
+    body: JSON.stringify({ plan }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function createPortal(): Promise<{ url: string }> {
+  const res = await fetch(`${BASE}/billing/portal`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 export async function promoLogin(code: string): Promise<{ access_token: string; refresh_token: string }> {
   const res = await fetch(`${BASE}/auth/promo-login`, {
     method: 'POST',
