@@ -100,10 +100,25 @@ export default function Review() {
     });
   }
 
+  async function wakeServer() {
+    const BASE = import.meta.env.VITE_API_URL ?? '';
+    for (let i = 0; i < 12; i++) {
+      try {
+        const res = await fetch(`${BASE}/health`, { signal: AbortSignal.timeout(5000) });
+        if (res.ok) return;
+      } catch {}
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+    throw new Error('Server is not responding. Please try again in a moment.');
+  }
+
   async function handleRender() {
     setRendering(true);
     setRenderError('');
+    setRenderLabel('Warming up server…');
     try {
+      await wakeServer();
+      setRenderLabel('Rendering final video…');
       const titleCardPayload = addTitleCard && cardTitle.trim()
         ? { title: cardTitle.trim(), subtitle: cardSubtitle.trim() }
         : undefined;
@@ -286,7 +301,18 @@ export default function Review() {
                 >
                   Re-generate all narration
                 </button>
-                {renderError && <p className="text-sm" style={{ color: 'rgba(255,120,120,0.9)' }}>{renderError}</p>}
+                {renderError && (
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <p className="text-sm" style={{ color: 'rgba(255,120,120,0.9)' }}>{renderError}</p>
+                    <button
+                      onClick={handleRender}
+                      className="text-xs font-medium px-3 py-1.5 rounded-lg transition-all"
+                      style={{ background: 'rgba(0,212,255,0.08)', border: '1px solid rgba(0,212,255,0.2)', color: '#00d4ff' }}
+                    >
+                      Retry →
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </div>
