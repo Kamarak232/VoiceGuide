@@ -178,45 +178,24 @@ export async function renderExport(
   titleCard?: { title: string; subtitle: string },
   onProgress?: (label: string) => void
 ): Promise<{ downloadUrl: string }> {
-  const res = await fetch(`${BASE}/export/render`, {
+  const startRes = await fetch(`${BASE}/export/render`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
     body: JSON.stringify({ sessionId, syncManifest, videoUrl: videoUrl.replace(BASE, ''), burnSubtitles, segments, titleCard }),
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!startRes.ok) throw new Error(await startRes.text());
+  const { jobId } = await startRes.json() as { jobId: string };
 
-  const reader = res.body!.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let result: { downloadUrl: string } | null = null;
-  let serverError: string | null = null;
-
-  outer: while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop()!;
-
-    let eventName = '';
-    let eventData = '';
-    for (const line of lines) {
-      if (line.startsWith('event: ')) { eventName = line.slice(7).trim(); eventData = ''; }
-      else if (line.startsWith('data: ')) { eventData = line.slice(6).trim(); }
-      else if (line === '' && eventName) {
-        try {
-          const parsed = JSON.parse(eventData);
-          if (eventName === 'progress') onProgress?.(parsed.label);
-          else if (eventName === 'done') { result = { downloadUrl: `${BASE}${parsed.downloadUrl}` }; break outer; }
-          else if (eventName === 'error') { serverError = parsed.error; break outer; }
-        } catch { /* ignore malformed event */ }
-        eventName = '';
-        eventData = '';
-      }
-    }
+  // Poll until done or error
+  for (let i = 0; i < 240; i++) {
+    await new Promise((r) => setTimeout(r, 3000));
+    const pollRes = await fetch(`${BASE}/export/render/${jobId}`, { headers: await getAuthHeader() });
+    if (!pollRes.ok) continue;
+    const job = await pollRes.json() as { status: string; label: string; downloadUrl?: string; error?: string };
+    if (job.label) onProgress?.(job.label);
+    if (job.status === 'done' && job.downloadUrl) return { downloadUrl: `${BASE}${job.downloadUrl}` };
+    if (job.status === 'error') throw new Error(job.error || 'Render failed.');
   }
 
-  if (serverError) throw new Error(serverError);
-  if (!result) throw new Error('No response from server.');
-  return result;
+  throw new Error('Render timed out. Please try again.');
 }

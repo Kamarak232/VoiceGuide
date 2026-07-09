@@ -1,52 +1,41 @@
 import { Router, Request, Response } from 'express';
 import { renderFinalVideo, renderStepPreview, generateSRT, getVideoInfo, generateTitleCard, concatVideos, SyncEntry, SubtitleEntry } from '../services/ffmpeg';
-import { restoreFile, urlToKey } from '../services/r2';
+import { restoreFile, urlToKey, uploadFile } from '../services/r2';
 import path from 'path';
 import fs from 'fs';
+import { randomUUID } from 'crypto';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const router = Router();
 
-router.post('/render', async (req: Request, res: Response) => {
-  const { sessionId, syncManifest, videoUrl, burnSubtitles, segments, titleCard } = req.body as {
-    sessionId: string;
-    syncManifest: SyncEntry[];
-    videoUrl: string;
-    burnSubtitles?: boolean;
-    segments?: { stepNumber: number; text: string }[];
-    titleCard?: { title: string; subtitle: string };
-  };
+type JobStatus = 'pending' | 'done' | 'error';
+interface Job {
+  status: JobStatus;
+  label: string;
+  downloadUrl?: string;
+  error?: string;
+}
+const jobs = new Map<string, Job>();
 
-  if (!sessionId || !syncManifest || !videoUrl) {
-    res.status(400).json({ error: 'sessionId, syncManifest, and videoUrl are required.' });
-    return;
-  }
-
-  if (!UUID_RE.test(sessionId)) {
-    res.status(400).json({ error: 'Invalid sessionId.' });
-    return;
-  }
-
-  // Stream SSE so the proxy keep-alive pings prevent connection timeout during long renders
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.flushHeaders();
-
-  function emit(event: string, data: unknown) {
-    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-  }
-
-  // Ping every 15s to prevent nginx proxy from closing the idle connection
-  const keepAlive = setInterval(() => res.write(':keep-alive\n\n'), 15000);
-
+async function runRender(
+  jobId: string,
+  sessionId: string,
+  syncManifest: SyncEntry[],
+  videoUrl: string,
+  burnSubtitles?: boolean,
+  segments?: { stepNumber: number; text: string }[],
+  titleCard?: { title: string; subtitle: string }
+) {
+  const job = jobs.get(jobId)!;
   try {
     const screenVideoPath = path.join(__dirname, '../../../', videoUrl);
     if (!fs.existsSync(screenVideoPath)) {
       console.log('[export] screen not on disk, attempting R2 restore...');
       const restored = await restoreFile(urlToKey(videoUrl), screenVideoPath);
       if (!restored) {
-        emit('error', { error: 'Screen recording not found. Please record again.' });
+        job.status = 'error';
+        job.error = 'Screen recording not found. Please record again.';
         return;
       }
     }
@@ -80,7 +69,7 @@ router.post('/render', async (req: Request, res: Response) => {
       generateSRT(subtitleEntries, srtPath);
     }
 
-    emit('progress', { label: 'Mixing narration with video…' });
+    job.label = 'Mixing narration with video…';
 
     if (titleCard && titleCard.title) {
       const mainTmpPath = path.join(outputsDir, `session-${sessionId}-main-tmp.mp4`);
@@ -88,7 +77,7 @@ router.post('/render', async (req: Request, res: Response) => {
       try {
         const { width, height } = await getVideoInfo(screenVideoPath);
         await renderFinalVideo(screenVideoPath, resolvedManifest, [], mainTmpPath, srtPath);
-        emit('progress', { label: 'Adding title card…' });
+        job.label = 'Adding title card…';
         await generateTitleCard(titleCard.title, titleCard.subtitle ?? '', titleCardPath, width, height);
         await concatVideos(titleCardPath, mainTmpPath, finalOutputPath);
       } finally {
@@ -99,13 +88,57 @@ router.post('/render', async (req: Request, res: Response) => {
       await renderFinalVideo(screenVideoPath, resolvedManifest, [], finalOutputPath, srtPath);
     }
 
-    emit('done', { downloadUrl: `/outputs/session-${sessionId}-final.mp4` });
+    // Upload final video to R2 so it survives a Render restart
+    await uploadFile(finalOutputPath, `outputs/session-${sessionId}-final.mp4`).catch((err) =>
+      console.error('[r2] final video upload failed:', err.message)
+    );
+
+    job.status = 'done';
+    job.downloadUrl = `/outputs/session-${sessionId}-final.mp4`;
+    job.label = 'Done';
   } catch (e: any) {
-    emit('error', { error: e?.message || 'Render failed.' });
-  } finally {
-    clearInterval(keepAlive);
-    res.end();
+    console.error('[export] render job failed:', e?.message);
+    job.status = 'error';
+    job.error = e?.message || 'Render failed.';
   }
+}
+
+router.post('/render', async (req: Request, res: Response) => {
+  const { sessionId, syncManifest, videoUrl, burnSubtitles, segments, titleCard } = req.body as {
+    sessionId: string;
+    syncManifest: SyncEntry[];
+    videoUrl: string;
+    burnSubtitles?: boolean;
+    segments?: { stepNumber: number; text: string }[];
+    titleCard?: { title: string; subtitle: string };
+  };
+
+  if (!sessionId || !syncManifest || !videoUrl) {
+    res.status(400).json({ error: 'sessionId, syncManifest, and videoUrl are required.' });
+    return;
+  }
+  if (!UUID_RE.test(sessionId)) {
+    res.status(400).json({ error: 'Invalid sessionId.' });
+    return;
+  }
+
+  const jobId = randomUUID();
+  jobs.set(jobId, { status: 'pending', label: 'Starting render…' });
+
+  // Fire render in background — respond immediately so the proxy never times out
+  runRender(jobId, sessionId, syncManifest, videoUrl, burnSubtitles, segments, titleCard);
+
+  res.json({ jobId });
+});
+
+router.get('/render/:jobId', (req: Request, res: Response) => {
+  const { jobId } = req.params;
+  const job = jobs.get(jobId);
+  if (!job) {
+    res.status(404).json({ error: 'Job not found.' });
+    return;
+  }
+  res.json(job);
 });
 
 router.post('/preview-step', async (req: Request, res: Response) => {
