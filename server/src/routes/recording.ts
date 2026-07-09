@@ -1,8 +1,10 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { upload } from '../middleware/upload';
 import { generateScriptFromKeyframes, VideoContext } from '../services/scriptGen';
 import { extractKeyframes, extractFallbackFrames, getVideoDuration, trimVideo } from '../services/ffmpeg';
 import { uploadFile, urlToKey } from '../services/r2';
+import { checkVideoLimit, recordVideo } from '../services/limits';
+import { AuthRequest } from '../middleware/auth';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs';
@@ -14,12 +16,22 @@ const recordingUpload = upload.fields([
   { name: 'narration', maxCount: 1 },
 ]);
 
-router.post('/process', recordingUpload, async (req: Request, res: Response) => {
+router.post('/process', recordingUpload, async (req: AuthRequest, res: Response) => {
   const files = req.files as { [fieldname: string]: Express.Multer.File[] };
   const screenFile = files['screen']?.[0];
 
   if (!screenFile) {
     res.status(400).json({ error: 'Screen recording is required.' });
+    return;
+  }
+
+  // Check plan limits before starting SSE
+  const { allowed, plan, used, limit } = await checkVideoLimit(req.userId!);
+  if (!allowed) {
+    fs.unlinkSync(screenFile.path);
+    res.status(402).json({
+      error: `You've used ${used} of ${limit} video${limit === 1 ? '' : 's'} on your ${plan} plan this month. Upgrade to make more.`,
+    });
     return;
   }
 
@@ -86,6 +98,11 @@ router.post('/process', recordingUpload, async (req: Request, res: Response) => 
     const videoUrl = `/uploads/${path.basename(screenPath)}`;
     await uploadFile(screenPath, urlToKey(videoUrl)).catch((err) =>
       console.error('[r2] screen upload failed:', err.message)
+    );
+
+    const title = videoContext.title || 'Untitled';
+    await recordVideo(req.userId!, sessionId, title).catch((err) =>
+      console.error('[db] recordVideo failed:', err.message)
     );
 
     emit('done', { sessionId, segments, syncManifest: [], videoUrl, videoDuration });

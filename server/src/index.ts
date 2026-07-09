@@ -7,6 +7,7 @@ import axios from 'axios';
 import voiceRouter from './routes/voice';
 import recordingRouter from './routes/recording';
 import exportRouter from './routes/export';
+import { requireAuth } from './middleware/auth';
 
 const requiredEnvVars = ['FISH_AUDIO_API_KEY'];
 for (const key of requiredEnvVars) {
@@ -31,9 +32,9 @@ app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
 app.use('/outputs', express.static(path.join(__dirname, '../../outputs')));
 
-app.use('/voice', voiceRouter);
-app.use('/recording', recordingRouter);
-app.use('/export', exportRouter);
+app.use('/voice', requireAuth, voiceRouter);
+app.use('/recording', requireAuth, recordingRouter);
+app.use('/export', requireAuth, exportRouter);
 
 app.get('/health', async (_req, res) => {
   const ollamaOk = await axios.get('http://localhost:11434/', { timeout: 3000 })

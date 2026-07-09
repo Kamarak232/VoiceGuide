@@ -1,12 +1,15 @@
-import { BrowserRouter, Routes, Route, NavLink, Link } from 'react-router-dom';
-import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, NavLink, Link, Navigate, useNavigate } from 'react-router-dom';
+import { useEffect, useState, createContext, useContext } from 'react';
+import type { User } from '@supabase/supabase-js';
 import Home from './pages/Home';
 import Onboarding from './pages/Onboarding';
 import Setup from './pages/Setup';
 import Record from './pages/Record';
 import Review from './pages/Review';
 import Export from './pages/Export';
+import Auth from './pages/Auth';
 import { useStore } from './store/useStore';
+import { supabase } from './lib/supabase';
 
 const BASE = import.meta.env.VITE_API_URL ?? '';
 function useServerWake() {
@@ -15,9 +18,36 @@ function useServerWake() {
   }, []);
 }
 
+export const AuthContext = createContext<User | null>(null);
+export function useAuth() { return useContext(AuthContext); }
+
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const user = useAuth();
+  if (user === undefined) return null; // still loading
+  if (!user) return <Navigate to="/auth" replace />;
+  return <>{children}</>;
+}
+
+function SignOutButton() {
+  const navigate = useNavigate();
+  async function signOut() {
+    await supabase.auth.signOut();
+    navigate('/auth');
+  }
+  return (
+    <button
+      onClick={signOut}
+      className="text-xs text-dim hover:text-white transition-colors"
+    >
+      Sign out
+    </button>
+  );
+}
+
 function Nav() {
   useServerWake();
   const voiceId = useStore((s) => s.voiceId);
+  const user = useAuth();
   return (
     <nav
       style={{
@@ -34,55 +64,85 @@ function Nav() {
       >
         VoiceGuide
       </Link>
-      <div className="flex gap-1 text-sm">
-        {[
-          { to: '/onboarding', label: 'Voice Setup' },
-          { to: '/setup', label: 'Context' },
-          { to: '/record', label: 'Record' },
-          { to: '/review', label: 'Review' },
-          { to: '/export', label: 'Export' },
-        ].map(({ to, label }) => (
-          <NavLink
-            key={to}
-            to={to}
-            className={({ isActive }) =>
-              isActive
-                ? 'px-3 py-1.5 rounded-lg text-neon font-medium text-sm'
-                : 'px-3 py-1.5 rounded-lg text-dim hover:text-white text-sm transition-colors'
-            }
-            style={({ isActive }) => isActive ? {
-              background: 'rgba(0,212,255,0.08)',
-              boxShadow: 'inset 0 0 12px rgba(0,212,255,0.06)',
-            } : {}}
-          >
-            {label}
-          </NavLink>
-        ))}
-      </div>
-      {voiceId && (
-        <span className="ml-auto text-xs font-medium flex items-center gap-1.5" style={{ color: '#00d4ff' }}>
-          <span className="w-1.5 h-1.5 rounded-full bg-neon inline-block" style={{ boxShadow: '0 0 6px #00d4ff' }} />
-          Voice ready
-        </span>
+      {user && (
+        <div className="flex gap-1 text-sm">
+          {[
+            { to: '/onboarding', label: 'Voice Setup' },
+            { to: '/setup', label: 'Context' },
+            { to: '/record', label: 'Record' },
+            { to: '/review', label: 'Review' },
+            { to: '/export', label: 'Export' },
+          ].map(({ to, label }) => (
+            <NavLink
+              key={to}
+              to={to}
+              className={({ isActive }) =>
+                isActive
+                  ? 'px-3 py-1.5 rounded-lg text-neon font-medium text-sm'
+                  : 'px-3 py-1.5 rounded-lg text-dim hover:text-white text-sm transition-colors'
+              }
+              style={({ isActive }) => isActive ? {
+                background: 'rgba(0,212,255,0.08)',
+                boxShadow: 'inset 0 0 12px rgba(0,212,255,0.06)',
+              } : {}}
+            >
+              {label}
+            </NavLink>
+          ))}
+        </div>
       )}
+      <div className="ml-auto flex items-center gap-4">
+        {voiceId && user && (
+          <span className="text-xs font-medium flex items-center gap-1.5" style={{ color: '#00d4ff' }}>
+            <span className="w-1.5 h-1.5 rounded-full bg-neon inline-block" style={{ boxShadow: '0 0 6px #00d4ff' }} />
+            Voice ready
+          </span>
+        )}
+        {user ? (
+          <SignOutButton />
+        ) : (
+          <Link to="/auth" className="text-xs font-medium px-3 py-1.5 rounded-lg transition-all"
+            style={{ background: 'rgba(0,212,255,0.08)', color: '#00d4ff', border: '1px solid rgba(0,212,255,0.2)' }}>
+            Sign in
+          </Link>
+        )}
+      </div>
     </nav>
   );
 }
 
 export default function App() {
+  const [user, setUser] = useState<User | null | undefined>(undefined);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Still resolving session — render nothing to avoid flash
+  if (user === undefined) return null;
+
   return (
-    <BrowserRouter>
-      <Nav />
-      <main className="min-h-screen">
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/onboarding" element={<Onboarding />} />
-          <Route path="/setup" element={<Setup />} />
-          <Route path="/record" element={<Record />} />
-          <Route path="/review" element={<Review />} />
-          <Route path="/export" element={<Export />} />
-        </Routes>
-      </main>
-    </BrowserRouter>
+    <AuthContext.Provider value={user}>
+      <BrowserRouter>
+        <Nav />
+        <main className="min-h-screen">
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/auth" element={user ? <Navigate to="/onboarding" replace /> : <Auth />} />
+            <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
+            <Route path="/setup" element={<ProtectedRoute><Setup /></ProtectedRoute>} />
+            <Route path="/record" element={<ProtectedRoute><Record /></ProtectedRoute>} />
+            <Route path="/review" element={<ProtectedRoute><Review /></ProtectedRoute>} />
+            <Route path="/export" element={<ProtectedRoute><Export /></ProtectedRoute>} />
+          </Routes>
+        </main>
+      </BrowserRouter>
+    </AuthContext.Provider>
   );
 }
