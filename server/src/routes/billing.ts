@@ -59,28 +59,33 @@ router.post('/checkout', async (req: AuthRequest, res: Response) => {
     .single();
 
   let customerId = user?.stripe_customer_id as string | undefined;
-  if (!customerId) {
-    const customer = await stripe.customers.create({
-      email: req.userEmail,
-      metadata: { supabase_user_id: req.userId! },
+  try {
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: req.userEmail,
+        metadata: { supabase_user_id: req.userId! },
+      });
+      customerId = customer.id;
+      await supabase.from('vg_users').update({ stripe_customer_id: customerId }).eq('id', req.userId!);
+    }
+
+    const session = await stripe.checkout.sessions.create({
+      customer: customerId,
+      mode: 'subscription',
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: `${process.env.FRONTEND_URL}/record?upgraded=1`,
+      cancel_url: `${process.env.FRONTEND_URL}/pricing`,
+      client_reference_id: req.userId,
+      subscription_data: {
+        metadata: { supabase_user_id: req.userId! },
+      },
     });
-    customerId = customer.id;
-    await supabase.from('vg_users').update({ stripe_customer_id: customerId }).eq('id', req.userId!);
+
+    res.json({ url: session.url });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Stripe error';
+    res.status(500).json({ error: msg });
   }
-
-  const session = await stripe.checkout.sessions.create({
-    customer: customerId,
-    mode: 'subscription',
-    line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${process.env.FRONTEND_URL}/record?upgraded=1`,
-    cancel_url: `${process.env.FRONTEND_URL}/pricing`,
-    client_reference_id: req.userId,
-    subscription_data: {
-      metadata: { supabase_user_id: req.userId! },
-    },
-  });
-
-  res.json({ url: session.url });
 });
 
 // POST /billing/portal — Stripe customer portal
@@ -96,12 +101,16 @@ router.post('/portal', async (req: AuthRequest, res: Response) => {
     return;
   }
 
-  const session = await stripe.billingPortal.sessions.create({
-    customer: user.stripe_customer_id as string,
-    return_url: `${process.env.FRONTEND_URL}/record`,
-  });
-
-  res.json({ url: session.url });
+  try {
+    const session = await stripe.billingPortal.sessions.create({
+      customer: user.stripe_customer_id as string,
+      return_url: `${process.env.FRONTEND_URL}/record`,
+    });
+    res.json({ url: session.url });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Stripe error';
+    res.status(500).json({ error: msg });
+  }
 });
 
 // POST /billing/webhook — Stripe events (raw body required — registered before express.json in index.ts)

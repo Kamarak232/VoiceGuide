@@ -80,6 +80,7 @@ export default function Pricing() {
   const [currentPlan, setCurrentPlan] = useState<string | null>(null);
   const [hasStripe, setHasStripe] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -92,11 +93,16 @@ export default function Pricing() {
   async function handleCta(planId: string) {
     if (!user) { navigate('/auth'); return; }
     if (planId === 'free') { navigate('/onboarding'); return; }
+    setError(null);
     if (planId === currentPlan) {
-      // manage billing
       setLoading('portal');
-      const { url } = await createPortal();
-      window.location.href = url;
+      try {
+        const { url } = await createPortal();
+        window.location.href = url;
+      } catch (e) {
+        setLoading(null);
+        setError(e instanceof Error ? e.message : 'Failed to open billing portal.');
+      }
       return;
     }
     setLoading(planId);
@@ -105,16 +111,19 @@ export default function Pricing() {
       window.location.href = url;
     } catch (e) {
       setLoading(null);
+      setError(e instanceof Error ? e.message : 'Failed to start checkout. Please try again.');
     }
   }
 
   async function handleManageBilling() {
+    setError(null);
     setLoading('portal');
     try {
       const { url } = await createPortal();
       window.location.href = url;
-    } catch {
+    } catch (e) {
       setLoading(null);
+      setError(e instanceof Error ? e.message : 'Failed to open billing portal.');
     }
   }
 
@@ -135,6 +144,12 @@ export default function Pricing() {
           </button>
         )}
       </div>
+
+      {error && (
+        <div className="mb-8 px-4 py-3 rounded-xl text-sm text-center" style={{ background: 'rgba(255,60,60,0.1)', border: '1px solid rgba(255,60,60,0.3)', color: '#ff6b6b' }}>
+          {error}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         {PLANS.map((plan) => {
