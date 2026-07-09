@@ -115,13 +115,16 @@ function Nav() {
 
 export default function App() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
+  const clearSession = useStore((s) => s.clearSession);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
+      if (event === 'SIGNED_OUT') clearSession();
+      if (event === 'SIGNED_IN') clearSession();
     });
     return () => subscription.unsubscribe();
   }, []);
