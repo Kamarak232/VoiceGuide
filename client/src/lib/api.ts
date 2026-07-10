@@ -2,6 +2,41 @@ import { getAuthHeader } from './supabase';
 
 const BASE = import.meta.env.VITE_API_URL ?? '';
 
+export interface LibraryItem {
+  session_id: string;
+  title: string;
+  created_at: string;
+  video_duration: number | null;
+  download_url: string | null;
+  video_context: import('../store/useStore').VideoContext | null;
+}
+
+export interface LibraryRecording {
+  session_id: string;
+  title: string;
+  created_at: string;
+  video_url: string | null;
+  video_duration: number | null;
+  segments: import('../store/useStore').ScriptSegment[] | null;
+  sync_manifest: import('../store/useStore').SyncEntry[] | null;
+  video_context: import('../store/useStore').VideoContext | null;
+  download_url: string | null;
+}
+
+export async function getLibrary(): Promise<LibraryItem[]> {
+  const res = await fetch(`${BASE}/library`, { headers: await getAuthHeader() });
+  if (!res.ok) throw new Error(await res.text());
+  const { recordings } = await res.json();
+  return recordings;
+}
+
+export async function getLibraryRecording(sessionId: string): Promise<LibraryRecording> {
+  const res = await fetch(`${BASE}/library/${sessionId}`, { headers: await getAuthHeader() });
+  if (!res.ok) throw new Error(await res.text());
+  const { recording } = await res.json();
+  return recording;
+}
+
 export async function getBillingStatus(): Promise<{ plan: string; used: number; limit: number; hasStripe: boolean }> {
   const res = await fetch(`${BASE}/billing/status`, { headers: await getAuthHeader() });
   if (!res.ok) throw new Error(await res.text());

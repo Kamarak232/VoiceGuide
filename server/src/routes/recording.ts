@@ -101,9 +101,13 @@ router.post('/process', recordingUpload, async (req: AuthRequest, res: Response)
     );
 
     const title = videoContext.title || 'Untitled';
-    await recordVideo(req.userId!, sessionId, title).catch((err) =>
-      console.error('[db] recordVideo failed:', err.message)
-    );
+    await recordVideo(req.userId!, sessionId, title, {
+      videoUrl,
+      videoDuration,
+      segments,
+      syncManifest: [],
+      videoContext,
+    }).catch((err) => console.error('[db] recordVideo failed:', err.message));
 
     emit('done', { sessionId, segments, syncManifest: [], videoUrl, videoDuration });
   } catch (e: any) {

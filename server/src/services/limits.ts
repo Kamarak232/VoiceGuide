@@ -36,7 +36,62 @@ export async function checkVideoLimit(
 export async function recordVideo(
   userId: string,
   sessionId: string,
-  title: string
+  title: string,
+  extra?: {
+    videoUrl?: string;
+    videoDuration?: number;
+    segments?: unknown;
+    syncManifest?: unknown;
+    videoContext?: unknown;
+  }
 ): Promise<void> {
-  await supabase.from('vg_videos').insert({ user_id: userId, session_id: sessionId, title });
+  await supabase.from('vg_videos').insert({
+    user_id: userId,
+    session_id: sessionId,
+    title,
+    video_url: extra?.videoUrl,
+    video_duration: extra?.videoDuration,
+    segments: extra?.segments,
+    sync_manifest: extra?.syncManifest ?? [],
+    video_context: extra?.videoContext,
+  });
+}
+
+export async function updateRecordingSyncManifest(
+  sessionId: string,
+  syncManifest: unknown
+): Promise<void> {
+  await supabase
+    .from('vg_videos')
+    .update({ sync_manifest: syncManifest })
+    .eq('session_id', sessionId);
+}
+
+export async function updateRecordingDownload(
+  sessionId: string,
+  downloadUrl: string
+): Promise<void> {
+  await supabase
+    .from('vg_videos')
+    .update({ download_url: downloadUrl })
+    .eq('session_id', sessionId);
+}
+
+export async function listRecordings(userId: string): Promise<unknown[]> {
+  const { data } = await supabase
+    .from('vg_videos')
+    .select('session_id, title, created_at, video_duration, download_url, video_context')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+  return data ?? [];
+}
+
+export async function getRecording(userId: string, sessionId: string): Promise<unknown | null> {
+  const { data } = await supabase
+    .from('vg_videos')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('session_id', sessionId)
+    .single();
+  return data ?? null;
 }

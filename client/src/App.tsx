@@ -10,6 +10,7 @@ import Export from './pages/Export';
 import Auth from './pages/Auth';
 import Pricing from './pages/Pricing';
 import Settings from './pages/Settings';
+import Library from './pages/Library';
 import { useStore } from './store/useStore';
 import { supabase } from './lib/supabase';
 
@@ -54,6 +55,7 @@ function Nav() {
       {user && (
         <div className="flex gap-1 text-sm">
           {[
+            { to: '/library', label: 'Library' },
             { to: '/onboarding', label: 'Voice Setup' },
             { to: '/setup', label: 'Context' },
             { to: '/record', label: 'Record' },
@@ -152,6 +154,7 @@ export default function App() {
             <Route path="/export" element={<ProtectedRoute><Export /></ProtectedRoute>} />
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+            <Route path="/library" element={<ProtectedRoute><Library /></ProtectedRoute>} />
           </Routes>
         </main>
       </BrowserRouter>

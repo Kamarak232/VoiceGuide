@@ -9,6 +9,7 @@ import recordingRouter from './routes/recording';
 import exportRouter from './routes/export';
 import authRouter from './routes/auth';
 import billingRouter, { webhookHandler } from './routes/billing';
+import libraryRouter from './routes/library';
 import { requireAuth } from './middleware/auth';
 
 const requiredEnvVars = ['FISH_AUDIO_API_KEY'];
@@ -58,6 +59,7 @@ app.use('/billing', requireAuth, billingRouter);
 app.use('/voice', requireAuth, voiceRouter);
 app.use('/recording', requireAuth, recordingRouter);
 app.use('/export', requireAuth, exportRouter);
+app.use('/library', requireAuth, libraryRouter);
 
 app.get('/health', async (_req, res) => {
   const ollamaOk = await axios.get('http://localhost:11434/', { timeout: 3000 })

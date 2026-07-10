@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { renderFinalVideo, renderStepPreview, generateSRT, getVideoInfo, generateTitleCard, concatVideos, SyncEntry, SubtitleEntry } from '../services/ffmpeg';
 import { restoreFile, urlToKey, uploadFile } from '../services/r2';
+import { updateRecordingDownload, updateRecordingSyncManifest } from '../services/limits';
 import path from 'path';
 import fs from 'fs';
 import { randomUUID } from 'crypto';
@@ -93,8 +94,17 @@ async function runRender(
       console.error('[r2] final video upload failed:', err.message)
     );
 
+    const downloadUrl = `/outputs/session-${sessionId}-final.mp4`;
+    await updateRecordingDownload(sessionId, downloadUrl).catch((err) =>
+      console.error('[db] updateRecordingDownload failed:', err.message)
+    );
+    // Persist the final syncManifest so the library can restore narration
+    await updateRecordingSyncManifest(sessionId, syncManifest).catch((err) =>
+      console.error('[db] updateRecordingSyncManifest failed:', err.message)
+    );
+
     job.status = 'done';
-    job.downloadUrl = `/outputs/session-${sessionId}-final.mp4`;
+    job.downloadUrl = downloadUrl;
     job.label = 'Done';
   } catch (e: any) {
     console.error('[export] render job failed:', e?.message);
