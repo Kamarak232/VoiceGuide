@@ -84,7 +84,8 @@ export function renderFinalVideo(
     syncManifest.forEach((entry) => cmd.input(entry.audioFile));
 
     const adelayFilters = syncManifest.map((entry, i) => {
-      const delayMs = Math.round(entry.videoStartTime * 1000);
+      // Add 350ms so the viewer sees the action before hearing the narration.
+      const delayMs = Math.round(entry.videoStartTime * 1000) + 350;
       return `[${i + 1}:a]adelay=${delayMs}|${delayMs}[a${i + 1}]`;
     });
 
