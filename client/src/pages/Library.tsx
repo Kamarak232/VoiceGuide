@@ -43,8 +43,16 @@ export default function Library() {
     setRestoring(item.session_id);
     try {
       const rec = await getLibraryRecording(item.session_id);
+
+      // If no segments stored this is a legacy recording — send to record page
+      if (!rec.segments || rec.segments.length === 0) {
+        setError(`"${item.title}" was recorded before the library feature was added. Please make a new recording.`);
+        setRestoring(null);
+        return;
+      }
+
       setSessionId(rec.session_id);
-      setSegments(rec.segments ?? []);
+      setSegments(rec.segments);
       setSyncManifest(rec.sync_manifest ?? []);
       setVideoUrl(rec.video_url ? `${BASE}${rec.video_url}` : '');
       setVideoDuration(rec.video_duration ?? 0);

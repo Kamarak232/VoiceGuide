@@ -78,11 +78,21 @@ export async function updateRecordingDownload(
 }
 
 export async function listRecordings(userId: string): Promise<unknown[]> {
-  const { data } = await supabase
+  // Try with new columns first; fall back to base columns if migration not yet run
+  const { data, error } = await supabase
     .from('vg_videos')
     .select('session_id, title, created_at, video_duration, download_url, video_context')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
+  if (error) {
+    // Columns may not exist yet — return minimal data
+    const { data: fallback } = await supabase
+      .from('vg_videos')
+      .select('session_id, title, created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    return fallback ?? [];
+  }
   return data ?? [];
 }
 
