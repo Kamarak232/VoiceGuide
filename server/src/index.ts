@@ -29,7 +29,7 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
   : ['http://localhost:5173'];
 
-app.use(cors({
+const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
@@ -37,7 +37,13 @@ app.use(cors({
     if (/^https:\/\/voice-guide-14ah.*\.vercel\.app$/.test(origin)) return callback(null, true);
     callback(new Error(`CORS: origin ${origin} not allowed`));
   },
-}));
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  methods: ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+};
+
+// Explicitly respond to ALL OPTIONS preflights before any auth middleware
+app.options('*', cors(corsOptions));
+app.use(cors(corsOptions));
 
 // Stripe webhook needs raw body — must be before express.json()
 app.post('/billing/webhook', express.raw({ type: 'application/json' }), webhookHandler);
