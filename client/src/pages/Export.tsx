@@ -1,14 +1,14 @@
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { ScriptSegment } from '../store/useStore';
-import BackButton from '../components/BackButton';
+import { useState } from 'react';
 
 function esc(str: string) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function slugify(str: string) {
-  return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'transcript';
+  return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'tutorial';
 }
 
 function buildPrintHtml(title: string, description: string, segments: ScriptSegment[]): string {
@@ -63,7 +63,6 @@ function downloadTxt(title: string, segments: ScriptSegment[]) {
   const divider = '─'.repeat(Math.min(heading.length, 60));
   const body = segments.map((s) => `Step ${s.stepNumber}\n${s.text}`).join('\n\n');
   const content = `${heading}\n${divider}\n\n${body}\n`;
-
   const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -90,8 +89,31 @@ export default function Export() {
   const downloadUrl = useStore((s) => s.downloadUrl);
   const segments = useStore((s) => s.segments);
   const videoContext = useStore((s) => s.videoContext);
+  const [downloading, setDownloading] = useState(false);
 
   const hasTranscript = segments.length > 0;
+  const filename = `${slugify(videoContext.title || 'tutorial')}.mp4`;
+
+  // Fetch and force to Chrome downloads — the <a download> attribute
+  // does not work for cross-origin URLs; it just opens in the browser.
+  async function handleDownload() {
+    if (!downloadUrl) return;
+    setDownloading(true);
+    try {
+      const res = await fetch(downloadUrl);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   if (!downloadUrl) {
     return (
@@ -105,84 +127,114 @@ export default function Export() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-6 py-16">
-      <BackButton to="/review" />
+    <div className="max-w-3xl mx-auto px-6 py-10">
+      {/* Back */}
+      <button
+        onClick={() => navigate(-1)}
+        className="flex items-center gap-2 text-sm mb-8 transition-colors"
+        style={{ color: 'rgba(255,255,255,0.35)' }}
+        onMouseEnter={(e) => (e.currentTarget.style.color = 'rgba(255,255,255,0.8)')}
+        onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(255,255,255,0.35)')}
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M10 12L6 8l4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        Back
+      </button>
 
-      <h1 className="text-4xl font-bold text-white mb-2">Your tutorial is ready!</h1>
-      <p className="text-dim mb-10">
-        Download your finished MP4 and transcript — ready to upload to any course platform.
-      </p>
+      <h1 className="text-3xl font-bold text-white mb-1">Your tutorial is ready</h1>
+      <p className="text-dim text-sm mb-8">Preview your video, then download it to share or upload to any course platform.</p>
 
-      <div className="flex flex-col gap-6">
-        {/* MP4 download */}
-        <div className="card p-5 flex flex-col gap-3">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.35)' }}>Video</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-sm"
-              style={{ background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.2)', color: '#00d4ff' }}>
-              ▶
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-white font-medium text-sm">Narrated screen recording</p>
-              <p className="text-xs text-dim truncate">{downloadUrl.split('/').pop()}</p>
-            </div>
-            <a href={downloadUrl} download className="btn-neon text-sm px-4 py-2 whitespace-nowrap">
+      {/* Video player — fills the width */}
+      <div className="rounded-2xl overflow-hidden mb-8" style={{ background: '#000', border: '1px solid rgba(255,255,255,0.08)' }}>
+        <video
+          src={downloadUrl}
+          controls
+          style={{ width: '100%', display: 'block', maxHeight: '60vh' }}
+        />
+      </div>
+
+      {/* Download button */}
+      <div className="flex items-center gap-4 mb-10 flex-wrap">
+        <button
+          onClick={handleDownload}
+          disabled={downloading}
+          className="btn-neon flex items-center gap-2"
+          style={{
+            background: 'linear-gradient(135deg, rgba(0,212,255,0.2), rgba(180,77,255,0.1))',
+            borderColor: 'rgba(0,212,255,0.5)',
+            boxShadow: '0 0 20px rgba(0,212,255,0.15)',
+          }}
+        >
+          {downloading ? (
+            <>
+              <span className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#00d4ff', borderTopColor: 'transparent' }} />
+              Preparing download…
+            </>
+          ) : (
+            <>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M8 2v8M5 7l3 3 3-3M2 12h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
               Download MP4
-            </a>
-          </div>
-        </div>
-
-        {/* Transcript download */}
-        {hasTranscript && (
-          <div className="card p-5 flex flex-col gap-4">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.35)' }}>Transcript</span>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              {segments.map((s) => (
-                <div key={s.stepNumber} className="flex gap-3 items-start">
-                  <span className="flex-shrink-0 w-5 h-5 rounded flex items-center justify-center text-xs font-bold mt-0.5"
-                    style={{ background: 'rgba(0,212,255,0.08)', color: '#00d4ff', border: '1px solid rgba(0,212,255,0.15)' }}>
-                    {s.stepNumber}
-                  </span>
-                  <p className="text-sm text-dim leading-relaxed">{s.text}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex gap-3 flex-wrap pt-1" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-              <button
-                onClick={() => downloadTxt(videoContext.title, segments)}
-                className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all"
-                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.8)' }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.09)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
-              >
-                <span>⬇</span> Save as .txt
-              </button>
-              <button
-                onClick={() => openPdf(videoContext.title, videoContext.description, segments)}
-                className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all"
-                style={{ background: 'rgba(180,77,255,0.08)', border: '1px solid rgba(180,77,255,0.2)', color: '#b44dff' }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(180,77,255,0.14)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(180,77,255,0.08)'; }}
-              >
-                <span>⬇</span> Export as PDF
-              </button>
-            </div>
-          </div>
-        )}
+            </>
+          )}
+        </button>
 
         <button
-          onClick={() => navigate('/setup')}
-          className="self-start text-sm text-dim hover:text-neon transition-colors underline mt-2"
+          onClick={() => navigate('/record')}
+          className="text-sm transition-colors"
+          style={{ color: 'rgba(255,255,255,0.35)' }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = '#00d4ff')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(255,255,255,0.35)')}
         >
           Create another tutorial →
         </button>
       </div>
+
+      {/* Transcript */}
+      {hasTranscript && (
+        <div className="rounded-2xl p-6" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)' }}>
+          <p className="text-xs font-semibold uppercase tracking-widest mb-4" style={{ color: 'rgba(255,255,255,0.3)' }}>Transcript</p>
+          <div className="flex flex-col gap-3 mb-5">
+            {segments.map((s) => (
+              <div key={s.stepNumber} className="flex gap-3 items-start">
+                <span className="flex-shrink-0 w-5 h-5 rounded flex items-center justify-center text-xs font-bold mt-0.5"
+                  style={{ background: 'rgba(0,212,255,0.08)', color: '#00d4ff', border: '1px solid rgba(0,212,255,0.15)' }}>
+                  {s.stepNumber}
+                </span>
+                <p className="text-sm text-dim leading-relaxed">{s.text}</p>
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-3 flex-wrap pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+            <button
+              onClick={() => downloadTxt(videoContext.title, segments)}
+              className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all"
+              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.8)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.09)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                <path d="M8 2v8M5 7l3 3 3-3M2 12h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Save as .txt
+            </button>
+            <button
+              onClick={() => openPdf(videoContext.title, videoContext.description, segments)}
+              className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all"
+              style={{ background: 'rgba(180,77,255,0.08)', border: '1px solid rgba(180,77,255,0.2)', color: '#b44dff' }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(180,77,255,0.14)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(180,77,255,0.08)'; }}
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                <path d="M8 2v8M5 7l3 3 3-3M2 12h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Export as PDF
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
