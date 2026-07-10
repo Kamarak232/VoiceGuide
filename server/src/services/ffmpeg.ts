@@ -91,21 +91,21 @@ export function renderFinalVideo(
     const mixInputs = syncManifest.map((_, i) => `[a${i + 1}]`).join('');
     const amixFilter = `${mixInputs}amix=inputs=${syncManifest.length}:duration=longest:dropout_transition=0[aout]`;
 
-    // Always normalise pixel format — WebM from MediaRecorder can have
-    // variable or non-yuv420p formats that break the filter network.
+    // Scale down to max 1280px wide to keep memory under Render's 512 MB limit.
+    // format=yuv420p must come last — WebM from MediaRecorder can have non-yuv420p.
     let videoFilterChain: string;
     if (srtPath) {
       const escapedPath = srtPath.replace(/\\/g, '/').replace(/:/g, '\\:');
-      videoFilterChain = `[0:v]subtitles=${escapedPath}:force_style='FontSize=16,PrimaryColour=&H00ffffff,OutlineColour=&H00000000,Outline=2,Bold=1,MarginV=25'[vsub];[vsub]format=yuv420p[vout]`;
+      videoFilterChain = `[0:v]scale=min(1280\\,iw):-2[vscale];[vscale]subtitles=${escapedPath}:force_style='FontSize=16,PrimaryColour=&H00ffffff,OutlineColour=&H00000000,Outline=2,Bold=1,MarginV=25'[vsub];[vsub]format=yuv420p[vout]`;
     } else {
-      videoFilterChain = `[0:v]format=yuv420p[vout]`;
+      videoFilterChain = `[0:v]scale=min(1280\\,iw):-2[vscale];[vscale]format=yuv420p[vout]`;
     }
 
     const filterComplex = [...adelayFilters, amixFilter, videoFilterChain].join(';');
 
     cmd
       .complexFilter(filterComplex)
-      .outputOptions(['-map [vout]', '-map [aout]', '-c:v libx264', '-c:a aac', '-crf 23', '-pix_fmt yuv420p', '-shortest'])
+      .outputOptions(['-map [vout]', '-map [aout]', '-c:v libx264', '-preset ultrafast', '-threads 1', '-c:a aac', '-crf 23', '-pix_fmt yuv420p', '-shortest'])
       .output(outputPath)
       .on('end', () => { if (srtPath && fs.existsSync(srtPath)) fs.unlinkSync(srtPath); resolve(); })
       .on('error', (err) => { if (srtPath && fs.existsSync(srtPath)) fs.unlinkSync(srtPath); reject(err); })
@@ -288,7 +288,8 @@ export function renderStepPreview(
         '-map', '1:a',
         '-t', String(clipDuration),
         '-c:v', 'libx264',
-        '-preset', 'fast',
+        '-preset', 'ultrafast',
+        '-threads', '1',
         '-crf', '28',
         '-c:a', 'aac',
         '-movflags', '+faststart',
@@ -306,7 +307,7 @@ export function concatVideos(firstPath: string, secondPath: string, outputPath: 
       .input(firstPath)
       .input(secondPath)
       .complexFilter('[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a]')
-      .outputOptions(['-map [v]', '-map [a]', '-c:v libx264', '-c:a aac', '-crf 23', '-pix_fmt yuv420p'])
+      .outputOptions(['-map [v]', '-map [a]', '-c:v libx264', '-preset ultrafast', '-threads 1', '-c:a aac', '-crf 23', '-pix_fmt yuv420p'])
       .output(outputPath)
       .on('end', () => resolve())
       .on('error', (err) => reject(err))
