@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import VoiceSampleRecorder from '../components/VoiceSampleRecorder';
 import { useStore, SavedVoice } from '../store/useStore';
-import { cloneVoice } from '../lib/api';
+import { cloneVoice, getBillingStatus } from '../lib/api';
 import { friendlyError } from '../lib/errors';
 
 type CloneStatus = 'idle' | 'uploading' | 'naming' | 'error';
@@ -29,6 +29,10 @@ export default function Onboarding() {
   const savedVoices = useStore((s) => s.savedVoices);
   const addVoice = useStore((s) => s.addVoice);
   const removeVoice = useStore((s) => s.removeVoice);
+
+  const [billing, setBilling] = useState<{ plan: string; used: number; limit: number } | null>(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [continueChecking, setContinueChecking] = useState(false);
 
   const [cloneStatus, setCloneStatus] = useState<CloneStatus>('idle');
   const [cloneError, setCloneError] = useState('');
@@ -172,11 +176,78 @@ export default function Onboarding() {
         </div>
       )}
 
+      {/* Upgrade modal */}
+      {showUpgradeModal && billing && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)' }}
+          onClick={() => setShowUpgradeModal(false)}
+        >
+          <div
+            className="relative max-w-sm w-full mx-4 rounded-2xl p-8"
+            style={{ background: '#0d0d1a', border: '1px solid rgba(180,77,255,0.3)', boxShadow: '0 0 60px rgba(180,77,255,0.15)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-5"
+              style={{ background: 'rgba(180,77,255,0.12)', border: '1px solid rgba(180,77,255,0.25)' }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14 2 9.27l6.91-1.01L12 2z"
+                  stroke="#b44dff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-bold text-white mb-2">Upgrade to continue</h2>
+            <p className="text-sm mb-6" style={{ color: 'rgba(255,255,255,0.5)' }}>
+              You've used {billing.used}/{billing.limit} videos on the {billing.plan.charAt(0).toUpperCase() + billing.plan.slice(1)} plan this month. Upgrade to make more tutorials.
+            </p>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => navigate('/pricing')}
+                className="btn-neon w-full"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(180,77,255,0.25), rgba(0,212,255,0.15))',
+                  borderColor: 'rgba(180,77,255,0.5)',
+                  boxShadow: '0 0 20px rgba(180,77,255,0.2)',
+                }}
+              >
+                See pricing →
+              </button>
+              <button
+                onClick={() => setShowUpgradeModal(false)}
+                className="text-sm text-center py-2"
+                style={{ color: 'rgba(255,255,255,0.3)' }}
+              >
+                Maybe later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Continue / add new */}
       {hasValidVoice && !showCloneForm && cloneStatus === 'idle' && (
         <div className="flex items-center gap-4 mb-10">
-          <button onClick={() => navigate('/setup')} className="btn-neon">
-            Continue with {activeVoice!.name} →
+          <button
+            disabled={continueChecking}
+            onClick={async () => {
+              setContinueChecking(true);
+              try {
+                const b = await getBillingStatus();
+                setBilling(b);
+                if (b.used >= b.limit) {
+                  setShowUpgradeModal(true);
+                } else {
+                  navigate('/setup');
+                }
+              } catch {
+                // If check fails, let them through — server will enforce the limit
+                navigate('/setup');
+              } finally {
+                setContinueChecking(false);
+              }
+            }}
+            className="btn-neon"
+          >
+            {continueChecking ? 'Checking…' : `Continue with ${activeVoice!.name} →`}
           </button>
           <button onClick={() => setShowCloneForm(true)}
             className="text-sm underline" style={{ color: 'rgba(255,255,255,0.35)' }}>

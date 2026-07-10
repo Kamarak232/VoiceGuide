@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
-import { processRecording } from '../lib/api';
+import { processRecording, getBillingStatus } from '../lib/api';
 import BackButton from '../components/BackButton';
 import { friendlyError } from '../lib/errors';
 
@@ -144,6 +144,8 @@ export default function Record() {
   const setVideoUrl = useStore((s) => s.setVideoUrl);
   const setVideoDuration = useStore((s) => s.setVideoDuration);
 
+  const [billing, setBilling] = useState<{ plan: string; used: number; limit: number } | null>(null);
+
   const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState('');
   const [seconds, setSeconds] = useState(0);
@@ -163,6 +165,10 @@ export default function Record() {
   const previewVideoRef = useRef<HTMLVideoElement>(null);
   const secondsRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    getBillingStatus().then(setBilling).catch(() => {});
+  }, []);
 
   useEffect(() => {
     secondsRef.current = seconds;
@@ -329,36 +335,72 @@ export default function Record() {
         </>
       )}
 
-      {status === 'idle' && (
-        <div className="flex flex-col gap-4">
-          <button onClick={startRecording} className="btn-neon self-start">
-            Start Recording
-          </button>
+      {status === 'idle' && (() => {
+        const atLimit = billing && billing.used >= billing.limit;
+        return (
+          <div className="flex flex-col gap-4">
+            {atLimit && (
+              <div className="rounded-2xl p-6 mb-2" style={{ background: 'rgba(180,77,255,0.07)', border: '1px solid rgba(180,77,255,0.25)' }}>
+                <p className="text-white font-semibold mb-1">
+                  You've used {billing.used}/{billing.limit} videos on the {billing.plan.charAt(0).toUpperCase() + billing.plan.slice(1)} plan this month.
+                </p>
+                <p className="text-sm mb-4" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                  Upgrade to keep creating tutorials.
+                </p>
+                <button
+                  onClick={() => navigate('/pricing')}
+                  className="btn-neon"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(180,77,255,0.25), rgba(0,212,255,0.15))',
+                    borderColor: 'rgba(180,77,255,0.5)',
+                    boxShadow: '0 0 20px rgba(180,77,255,0.2)',
+                  }}
+                >
+                  Upgrade plan →
+                </button>
+              </div>
+            )}
 
-          <div className="flex items-center gap-3 max-w-xs">
-            <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.08)' }} />
-            <span className="text-xs text-dim">or</span>
-            <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.08)' }} />
+            <button
+              onClick={startRecording}
+              disabled={!!atLimit}
+              className="btn-neon self-start"
+              style={atLimit ? { opacity: 0.35, cursor: 'not-allowed' } : {}}
+            >
+              Start Recording
+            </button>
+
+            <div className="flex items-center gap-3 max-w-xs">
+              <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.08)' }} />
+              <span className="text-xs text-dim">or</span>
+              <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.08)' }} />
+            </div>
+
+            <button
+              onClick={() => !atLimit && fileInputRef.current?.click()}
+              disabled={!!atLimit}
+              className="self-start flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium transition-all"
+              style={{
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                color: atLimit ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.7)',
+                cursor: atLimit ? 'not-allowed' : 'pointer',
+              }}
+              onMouseEnter={e => { if (!atLimit) { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; } }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = atLimit ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.7)'; }}
+            >
+              ⬆ Upload a recording
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="video/*"
+              className="hidden"
+              onChange={handleFileSelect}
+            />
           </div>
-
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="self-start flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium transition-all"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)' }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
-          >
-            ⬆ Upload a recording
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="video/*"
-            className="hidden"
-            onChange={handleFileSelect}
-          />
-        </div>
-      )}
+        );
+      })()}
 
       {status === 'recording' && (
         <div className="flex flex-col items-start gap-6">
