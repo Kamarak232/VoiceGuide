@@ -4,14 +4,16 @@ export interface JobState {
   result?: Record<string, unknown>;
   error?: string;
   createdAt: number;
+  startedAt?: number;
 }
 
 const jobs = new Map<string, JobState>();
 let running = 0;
 const MAX_CONCURRENT = 2;
+const JOB_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 const pending: (() => Promise<void>)[] = [];
 
-// Purge jobs older than 2 hours to prevent memory leak
+// Purge completed/failed jobs older than 2 hours
 setInterval(() => {
   const cutoff = Date.now() - 2 * 60 * 60 * 1000;
   for (const [id, job] of jobs) {
@@ -39,8 +41,24 @@ export function getJob(id: string): JobState | undefined {
   return jobs.get(id);
 }
 
-export function enqueue(fn: () => Promise<void>): void {
-  pending.push(fn);
+export function enqueue(jobId: string, fn: () => Promise<void>): void {
+  pending.push(async () => {
+    updateJob(jobId, { startedAt: Date.now() });
+
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Job timed out after 5 minutes.')), JOB_TIMEOUT_MS)
+    );
+
+    try {
+      await Promise.race([fn(), timeout]);
+    } catch (err: any) {
+      const job = jobs.get(jobId);
+      // Only mark error if job hasn't already finished
+      if (job && job.status === 'processing') {
+        updateJob(jobId, { status: 'error', error: err?.message ?? 'Job failed.' });
+      }
+    }
+  });
   drain();
 }
 

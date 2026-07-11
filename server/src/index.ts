@@ -5,6 +5,15 @@ import rateLimit from 'express-rate-limit';
 import path from 'path';
 import fs from 'fs';
 import axios from 'axios';
+import { cleanupOrphanedFiles } from './services/cleanup';
+
+// Keep the process alive — log the error but don't crash
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason);
+});
 import voiceRouter from './routes/voice';
 import recordingRouter from './routes/recording';
 import exportRouter from './routes/export';
@@ -26,6 +35,9 @@ for (const key of requiredEnvVars) {
 ['uploads', 'outputs'].forEach((dir) => {
   fs.mkdirSync(path.join(__dirname, '../../', dir), { recursive: true });
 });
+
+// Sweep orphaned temp files left by any jobs that were mid-flight when the server last restarted
+cleanupOrphanedFiles();
 
 const app = express();
 const PORT = process.env.PORT || 3001;

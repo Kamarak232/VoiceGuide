@@ -57,7 +57,7 @@ router.post('/process', (req, res, next) => {
   // Return immediately — client polls /job/:jobId
   res.json({ jobId });
 
-  enqueue(async () => {
+  enqueue(jobId, async () => {
     updateJob(jobId, { status: 'processing', stage: 'extracting' });
     let currentPath = screenPath;
     try {
