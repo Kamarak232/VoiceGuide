@@ -2,6 +2,7 @@ import axios from 'axios';
 import FormData from 'form-data';
 import fs from 'fs';
 import ffmpeg from 'fluent-ffmpeg';
+import { withRetry } from './retry';
 
 const BASE = 'https://api.fish.audio';
 
@@ -22,11 +23,13 @@ export async function createVoiceClone(audioFilePath: string, name: string): Pro
 
   let res: any;
   try {
-    res = await axios.post(`${BASE}/model`, form, {
-      headers: { ...form.getHeaders(), Authorization: `Bearer ${apiKey()}` },
-    });
+    res = await withRetry(
+      () => axios.post(`${BASE}/model`, form, {
+        headers: { ...form.getHeaders(), Authorization: `Bearer ${apiKey()}` },
+      }),
+      { label: 'Fish Audio clone', attempts: 3, baseDelayMs: 2000 }
+    );
   } catch (e: any) {
-    // Log the full Fish Audio response body so we can diagnose
     const body = e?.response?.data;
     console.error('[Fish Audio] clone error body:', JSON.stringify(body));
     throw e;
@@ -45,23 +48,13 @@ export async function synthesiseWithTimestamps(
   voiceId: string,
   outputPath: string
 ): Promise<SegmentAudio> {
-  const res = await axios.post(
-    `${BASE}/v1/tts`,
-    {
-      text,
-      reference_id: voiceId,
-      format: 'mp3',
-      mp3_bitrate: 128,
-      normalize: true,
-      latency: 'normal',
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${apiKey()}`,
-        'Content-Type': 'application/json',
-      },
-      responseType: 'arraybuffer',
-    }
+  const res = await withRetry(
+    () => axios.post(
+      `${BASE}/v1/tts`,
+      { text, reference_id: voiceId, format: 'mp3', mp3_bitrate: 128, normalize: true, latency: 'normal' },
+      { headers: { Authorization: `Bearer ${apiKey()}`, 'Content-Type': 'application/json' }, responseType: 'arraybuffer' }
+    ),
+    { label: 'Fish Audio TTS', attempts: 3, baseDelayMs: 1000 }
   );
 
   fs.writeFileSync(outputPath, Buffer.from(res.data));

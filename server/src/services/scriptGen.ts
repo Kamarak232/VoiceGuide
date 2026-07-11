@@ -1,5 +1,6 @@
 import fs from 'fs';
 import Anthropic from '@anthropic-ai/sdk';
+import { withRetry } from './retry';
 
 export interface VideoContext {
   title: string;
@@ -46,11 +47,14 @@ export async function generateScriptFromKeyframes(
     text: buildPrompt(videoContext, videoDuration, sampledTimestamps, frames.length),
   };
 
-  const response = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 2048,
-    messages: [{ role: 'user', content: [...imageContent, textContent] }],
-  });
+  const response = await withRetry(
+    () => client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 2048,
+      messages: [{ role: 'user', content: [...imageContent, textContent] }],
+    }),
+    { label: 'Claude vision', attempts: 3, baseDelayMs: 1500 }
+  );
 
   const scriptText = (response.content[0] as Anthropic.TextBlock).text;
   console.log(`[script] Claude response received, parsing...`);
