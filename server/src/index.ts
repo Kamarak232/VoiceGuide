@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import path from 'path';
 import fs from 'fs';
 import axios from 'axios';
@@ -48,6 +49,35 @@ const corsOptions: cors.CorsOptions = {
 // Explicitly respond to ALL OPTIONS preflights before any auth middleware
 app.options('*', cors(corsOptions));
 app.use(cors(corsOptions));
+
+// Rate limits — keyed by IP
+const globalLimiter = rateLimit({
+  windowMs: 60 * 1000,       // 1 minute
+  max: 120,                   // 120 req/min per IP (burst tolerance for polling)
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please slow down.' },
+});
+
+const processLimiter = rateLimit({
+  windowMs: 60 * 1000,       // 1 minute
+  max: 3,                     // max 3 uploads/min per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Upload limit reached. Please wait a moment before trying again.' },
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,  // 15 minutes
+  max: 20,                    // 20 auth attempts per 15 min
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many login attempts. Please try again in 15 minutes.' },
+});
+
+app.use(globalLimiter);
+app.use('/recording/process', processLimiter);
+app.use('/auth', authLimiter);
 
 // Stripe webhook needs raw body — must be before express.json()
 app.post('/billing/webhook', express.raw({ type: 'application/json' }), webhookHandler);
