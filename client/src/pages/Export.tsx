@@ -89,7 +89,19 @@ export default function Export() {
   const downloadUrl = useStore((s) => s.downloadUrl);
   const segments = useStore((s) => s.segments);
   const videoContext = useStore((s) => s.videoContext);
+  const sessionId = useStore((s) => s.sessionId);
   const [downloading, setDownloading] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const shareUrl = sessionId ? `${window.location.origin}/watch/${sessionId}` : null;
+
+  function handleCopyLink() {
+    if (!shareUrl) return;
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
 
   const hasTranscript = segments.length > 0;
   const filename = `${slugify(videoContext.title || 'tutorial')}.mp4`;
@@ -180,6 +192,34 @@ export default function Export() {
             </>
           )}
         </button>
+
+        {shareUrl && (
+          <button
+            onClick={handleCopyLink}
+            className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all"
+            style={{
+              background: copied ? 'rgba(0,212,255,0.1)' : 'rgba(255,255,255,0.04)',
+              border: `1px solid ${copied ? 'rgba(0,212,255,0.3)' : 'rgba(255,255,255,0.1)'}`,
+              color: copied ? '#00d4ff' : 'rgba(255,255,255,0.7)',
+            }}
+          >
+            {copied ? (
+              <>
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                  <path d="M3 8l4 4 6-7" stroke="#00d4ff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Link copied!
+              </>
+            ) : (
+              <>
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                  <path d="M9 3H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V9M11 1h4m0 0v4m0-4L7 9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Share link
+              </>
+            )}
+          </button>
+        )}
 
         <button
           onClick={() => navigate('/record')}

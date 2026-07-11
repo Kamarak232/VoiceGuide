@@ -264,3 +264,17 @@ export async function deleteVoice(voiceId: string): Promise<void> {
   });
   if (!res.ok) throw new Error(await res.text());
 }
+
+export interface WatchData {
+  sessionId: string;
+  title: string;
+  downloadUrl: string;
+  segments: import('../store/useStore').ScriptSegment[];
+  videoContext: import('../store/useStore').VideoContext;
+}
+
+export async function getWatchData(sessionId: string): Promise<WatchData> {
+  const res = await fetch(`${BASE}/watch/${sessionId}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}

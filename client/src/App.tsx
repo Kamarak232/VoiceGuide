@@ -11,6 +11,7 @@ import Auth from './pages/Auth';
 import Pricing from './pages/Pricing';
 import Settings from './pages/Settings';
 import Library from './pages/Library';
+import Watch from './pages/Watch';
 import { useStore } from './store/useStore';
 import { supabase } from './lib/supabase';
 
@@ -155,6 +156,7 @@ export default function App() {
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/library" element={<ProtectedRoute><Library /></ProtectedRoute>} />
+            <Route path="/watch/:sessionId" element={<Watch />} />
           </Routes>
         </main>
       </BrowserRouter>

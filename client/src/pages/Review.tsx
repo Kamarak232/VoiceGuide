@@ -252,7 +252,7 @@ export default function Review() {
                 </button>
 
                 {addTitleCard && (
-                  <div className="flex flex-col gap-2 p-3 rounded-xl" style={{ background: 'rgba(180,77,255,0.04)', border: '1px solid rgba(180,77,255,0.12)' }}>
+                  <div className="flex flex-col gap-3 p-3 rounded-xl" style={{ background: 'rgba(180,77,255,0.04)', border: '1px solid rgba(180,77,255,0.12)' }}>
                     <div>
                       <label className="text-xs font-medium mb-1 block" style={{ color: 'rgba(255,255,255,0.5)' }}>Title</label>
                       <input
@@ -275,6 +275,36 @@ export default function Review() {
                         style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(180,77,255,0.2)', caretColor: '#b44dff' }}
                       />
                     </div>
+
+                    {/* Live title card preview */}
+                    {cardTitle.trim() && (
+                      <div>
+                        <p className="text-xs font-medium mb-2" style={{ color: 'rgba(255,255,255,0.3)' }}>Preview</p>
+                        <div
+                          className="relative rounded-lg overflow-hidden flex flex-col items-center justify-center"
+                          style={{ background: '#0a0a1a', aspectRatio: '16/9', border: '1px solid rgba(255,255,255,0.06)' }}
+                        >
+                          <p
+                            className="font-bold text-center px-4 leading-tight"
+                            style={{ color: '#ffffff', fontSize: 'clamp(14px, 3.5vw, 22px)', maxWidth: '85%' }}
+                          >
+                            {cardTitle}
+                          </p>
+                          {cardSubtitle.trim() && (
+                            <p
+                              className="text-center mt-2 px-4"
+                              style={{ color: '#bbbbcc', fontSize: 'clamp(9px, 2vw, 13px)', maxWidth: '80%' }}
+                            >
+                              {cardSubtitle}
+                            </p>
+                          )}
+                          <div
+                            className="absolute bottom-0 left-0 right-0"
+                            style={{ height: '3px', background: 'rgba(0,212,255,0.75)' }}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
