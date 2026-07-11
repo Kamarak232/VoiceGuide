@@ -108,44 +108,31 @@ export async function processRecording(
   if (trimEnd !== undefined && trimEnd > 0) form.append('trimEnd', String(trimEnd));
 
   const res = await fetch(`${BASE}/recording/process`, { method: 'POST', body: form, headers: await getAuthHeader() });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: 'Upload failed.' }));
+    throw new Error(body.error || 'Upload failed.');
+  }
+  const { jobId } = await res.json() as { jobId: string };
 
-  // Server streams SSE events — parse the response body as a stream
-  const reader = res.body!.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let result: ProcessResponse | null = null;
-  let serverError: string | null = null;
-
-  outer: while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-
-    const lines = buffer.split('\n');
-    buffer = lines.pop()!;
-
-    let eventName = '';
-    let eventData = '';
-    for (const line of lines) {
-      if (line.startsWith('event: ')) { eventName = line.slice(7).trim(); eventData = ''; }
-      else if (line.startsWith('data: ')) { eventData = line.slice(6).trim(); }
-      else if (line === '' && eventName) {
-        try {
-          const parsed = JSON.parse(eventData);
-          if (eventName === 'progress') onProgress?.(parsed.stage);
-          else if (eventName === 'done') { result = { ...parsed, videoUrl: `${BASE}${parsed.videoUrl}` }; break outer; }
-          else if (eventName === 'error') { serverError = parsed.error; break outer; }
-        } catch { /* ignore malformed event */ }
-        eventName = '';
-        eventData = '';
-      }
+  // Poll job status every 3 seconds until done or error
+  let lastStage = '';
+  for (let i = 0; i < 300; i++) {
+    await new Promise((r) => setTimeout(r, 3000));
+    const pollRes = await fetch(`${BASE}/recording/job/${jobId}`, { headers: await getAuthHeader() });
+    if (!pollRes.ok) continue;
+    const job = await pollRes.json() as { status: string; stage?: string; result?: Record<string, unknown>; error?: string };
+    if (job.stage && job.stage !== lastStage) {
+      lastStage = job.stage;
+      onProgress?.(job.stage);
     }
+    if (job.status === 'done' && job.result) {
+      const r = job.result as unknown as ProcessResponse & { videoUrl: string };
+      return { ...r, videoUrl: `${BASE}${r.videoUrl}` } as ProcessResponse;
+    }
+    if (job.status === 'error') throw new Error(job.error || 'Processing failed.');
   }
 
-  if (serverError) throw new Error(serverError);
-  if (!result) throw new Error('No response received from server.');
-  return result;
+  throw new Error('Processing timed out. Please try again.');
 }
 
 export async function synthesiseStep(
