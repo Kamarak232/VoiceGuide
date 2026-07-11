@@ -48,12 +48,8 @@ function Nav() {
       }}
       className="sticky top-0 z-50 px-6 py-3 flex items-center gap-8"
     >
-      <Link
-        to="/"
-        className="font-bold text-lg tracking-tight"
-        style={{ background: 'linear-gradient(90deg, #00d4ff, #b44dff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', textDecoration: 'none' }}
-      >
-        VoiceGuide
+      <Link to="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
+        <img src="/logo.png" alt="VoiceGuide" style={{ height: '36px', width: 'auto' }} />
       </Link>
       {user && (
         <div className="flex gap-1 text-sm">
