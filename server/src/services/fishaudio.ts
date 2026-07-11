@@ -26,8 +26,11 @@ export async function createVoiceClone(audioFilePath: string, name: string): Pro
     res = await withRetry(
       () => axios.post(`${BASE}/model`, form, {
         headers: { ...form.getHeaders(), Authorization: `Bearer ${apiKey()}` },
+        timeout: 120_000, // 2 minutes — upload can be slow on Render
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity,
       }),
-      { label: 'Fish Audio clone', attempts: 3, baseDelayMs: 2000 }
+      { label: 'Fish Audio clone', attempts: 3, baseDelayMs: 3000 }
     );
   } catch (e: any) {
     const body = e?.response?.data;
