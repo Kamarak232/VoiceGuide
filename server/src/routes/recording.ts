@@ -4,6 +4,7 @@ import { generateScriptFromKeyframes, VideoContext } from '../services/scriptGen
 import { extractKeyframes, extractFallbackFrames, getVideoDuration, trimVideo } from '../services/ffmpeg';
 import { uploadFile, urlToKey } from '../services/r2';
 import { checkVideoLimit, recordVideo } from '../services/limits';
+import { sendUsageAlert } from '../services/email';
 import { AuthRequest } from '../middleware/auth';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
@@ -108,6 +109,14 @@ router.post('/process', recordingUpload, async (req: AuthRequest, res: Response)
       syncManifest: [],
       videoContext,
     }).catch((err) => console.error('[db] recordVideo failed:', err.message));
+
+    // Alert when user has exactly 1 video left on a limited plan
+    const newUsed = used + 1;
+    if (req.userEmail && newUsed === limit - 1 && limit !== 999999) {
+      sendUsageAlert(req.userEmail, newUsed, limit, plan).catch((err) =>
+        console.error('[email] usage alert failed:', err.message)
+      );
+    }
 
     emit('done', { sessionId, segments, syncManifest: [], videoUrl, videoDuration });
   } catch (e: any) {

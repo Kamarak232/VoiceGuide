@@ -327,45 +327,53 @@ export default function ScriptEditor({ segments, syncManifest, onUpdateText, onR
                 </div>
               )}
 
-              <div className="flex items-center gap-4 flex-wrap">
-                {!isRecording && !isUploading && (
-                  <>
-                    <button
-                      onClick={() => handleRegenerate(seg)}
-                      disabled={regenerating === seg.stepNumber}
-                      className="text-xs underline transition-colors disabled:opacity-40"
-                      style={{ color: regenerating === seg.stepNumber ? '#7777aa' : '#00d4ff88' }}
-                      onMouseEnter={e => { if (regenerating !== seg.stepNumber) e.currentTarget.style.color = '#00d4ff'; }}
-                      onMouseLeave={e => { if (regenerating !== seg.stepNumber) e.currentTarget.style.color = '#00d4ff88'; }}
-                    >
-                      {regenerating === seg.stepNumber
-                        ? <span className="flex items-center gap-1.5">
-                            <span className="w-3 h-3 border border-t-transparent rounded-full animate-spin inline-block"
-                              style={{ borderColor: '#00d4ff88', borderTopColor: 'transparent' }} />
-                            Regenerating…
-                          </span>
-                        : 'Regenerate audio'}
-                    </button>
+              {!isRecording && !isUploading && (
+                <div className="flex flex-col gap-2 pt-1" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                  {/* Re-record with own voice — primary action */}
+                  <button
+                    onClick={() => startStepRecording(seg.stepNumber)}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all self-start"
+                    style={{
+                      background: 'rgba(180,77,255,0.08)',
+                      border: '1px solid rgba(180,77,255,0.22)',
+                      color: '#b44dff',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(180,77,255,0.15)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(180,77,255,0.08)'; }}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                      <path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z" fill="#b44dff" />
+                      <path d="M19 10v1a7 7 0 0 1-14 0v-1M12 19v3M9 22h6" stroke="#b44dff" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                    Re-record in my voice
+                  </button>
 
-                    <button
-                      onClick={() => startStepRecording(seg.stepNumber)}
-                      className="text-xs underline transition-colors"
-                      style={{ color: 'rgba(180,77,255,0.6)' }}
-                      onMouseEnter={e => { e.currentTarget.style.color = '#b44dff'; }}
-                      onMouseLeave={e => { e.currentTarget.style.color = 'rgba(180,77,255,0.6)'; }}
-                    >
-                      🎙 Record my voice
-                    </button>
-                  </>
-                )}
+                  {/* Secondary: regenerate AI voice */}
+                  <button
+                    onClick={() => handleRegenerate(seg)}
+                    disabled={regenerating === seg.stepNumber}
+                    className="text-xs transition-colors disabled:opacity-40 self-start"
+                    style={{ color: 'rgba(255,255,255,0.25)' }}
+                    onMouseEnter={e => { if (regenerating !== seg.stepNumber) e.currentTarget.style.color = 'rgba(0,212,255,0.7)'; }}
+                    onMouseLeave={e => { if (regenerating !== seg.stepNumber) e.currentTarget.style.color = 'rgba(255,255,255,0.25)'; }}
+                  >
+                    {regenerating === seg.stepNumber
+                      ? <span className="flex items-center gap-1.5">
+                          <span className="w-3 h-3 border border-t-transparent rounded-full animate-spin inline-block"
+                            style={{ borderColor: '#00d4ff88', borderTopColor: 'transparent' }} />
+                          Regenerating AI voice…
+                        </span>
+                      : '↺ Regenerate AI voice'}
+                  </button>
 
-                {regenError === seg.stepNumber && (
-                  <span className="text-xs" style={{ color: 'rgba(255,100,100,0.8)' }}>Failed — try again</span>
-                )}
-                {uploadError === seg.stepNumber && (
-                  <span className="text-xs" style={{ color: 'rgba(255,100,100,0.8)' }}>Upload failed — try again</span>
-                )}
-              </div>
+                  {regenError === seg.stepNumber && (
+                    <span className="text-xs" style={{ color: 'rgba(255,100,100,0.8)' }}>Failed — try again</span>
+                  )}
+                  {uploadError === seg.stepNumber && (
+                    <span className="text-xs" style={{ color: 'rgba(255,100,100,0.8)' }}>Upload failed — try again</span>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Drop indicator — below */}
