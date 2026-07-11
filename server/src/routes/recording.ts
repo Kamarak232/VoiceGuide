@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { upload } from '../middleware/upload';
+import { upload, handleUploadError } from '../middleware/upload';
 import { generateScriptFromKeyframes, VideoContext } from '../services/scriptGen';
 import { extractKeyframes, extractFallbackFrames, getVideoDuration, trimVideo } from '../services/ffmpeg';
 import { uploadFile, urlToKey } from '../services/r2';
@@ -18,7 +18,12 @@ const recordingUpload = upload.fields([
   { name: 'narration', maxCount: 1 },
 ]);
 
-router.post('/process', recordingUpload, async (req: AuthRequest, res: Response) => {
+router.post('/process', (req, res, next) => {
+  recordingUpload(req, res, (err) => {
+    if (err) return handleUploadError(err, req, res, next);
+    next();
+  });
+}, async (req: AuthRequest, res: Response) => {
   const files = req.files as { [fieldname: string]: Express.Multer.File[] };
   const screenFile = files['screen']?.[0];
 
