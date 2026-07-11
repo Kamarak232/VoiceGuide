@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import VoiceSampleRecorder from '../components/VoiceSampleRecorder';
 import { useStore, SavedVoice } from '../store/useStore';
-import { cloneVoice, getBillingStatus } from '../lib/api';
+import { cloneVoice, getBillingStatus, listVoices, saveVoice, deleteVoice } from '../lib/api';
 import { friendlyError } from '../lib/errors';
 
 type CloneStatus = 'idle' | 'uploading' | 'naming' | 'error';
@@ -42,6 +42,20 @@ export default function Onboarding() {
   const [manualId, setManualId] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
+  useEffect(() => {
+    getBillingStatus().then(setBilling).catch(() => {});
+    // Pull voices from server and merge into local store
+    listVoices().then((remote) => {
+      remote.forEach((v) => {
+        addVoice({ id: v.voice_id, name: v.name, createdAt: new Date(v.created_at).getTime() });
+      });
+      if (remote.length > 0 && !voiceId) {
+        setVoiceId(remote[0].voice_id);
+      }
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const activeVoice = savedVoices.find((v) => v.id === voiceId);
   const hasValidVoice = !!(voiceId && isFishAudioId(voiceId) && activeVoice);
   const staleVoice = voiceId && !isFishAudioId(voiceId);
@@ -65,6 +79,7 @@ export default function Onboarding() {
     const voice: SavedVoice = { id: pendingVoiceId, name, createdAt: Date.now() };
     addVoice(voice);
     setVoiceId(pendingVoiceId);
+    saveVoice(pendingVoiceId, name).catch(() => {}); // best-effort server sync
     setCloneStatus('idle');
     setPendingVoiceId('');
     setVoiceName('');
@@ -73,6 +88,7 @@ export default function Onboarding() {
 
   function handleDeleteVoice(id: string) {
     removeVoice(id);
+    deleteVoice(id).catch(() => {}); // best-effort server sync
     setConfirmDelete(null);
   }
 

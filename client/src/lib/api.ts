@@ -234,3 +234,33 @@ export async function renderExport(
 
   throw new Error('Render timed out. Please try again.');
 }
+
+export interface RemoteVoice {
+  voice_id: string;
+  name: string;
+  created_at: string;
+}
+
+export async function listVoices(): Promise<RemoteVoice[]> {
+  const res = await fetch(`${BASE}/voices`, { headers: await getAuthHeader() });
+  if (!res.ok) throw new Error(await res.text());
+  const { voices } = await res.json();
+  return voices;
+}
+
+export async function saveVoice(voiceId: string, name: string): Promise<void> {
+  const res = await fetch(`${BASE}/voices`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
+    body: JSON.stringify({ voiceId, name }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+export async function deleteVoice(voiceId: string): Promise<void> {
+  const res = await fetch(`${BASE}/voices/${voiceId}`, {
+    method: 'DELETE',
+    headers: await getAuthHeader(),
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
