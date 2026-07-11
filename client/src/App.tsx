@@ -12,6 +12,7 @@ import Pricing from './pages/Pricing';
 import Settings from './pages/Settings';
 import Library from './pages/Library';
 import Watch from './pages/Watch';
+import Join from './pages/Join';
 import { useStore } from './store/useStore';
 import { supabase } from './lib/supabase';
 
@@ -157,6 +158,7 @@ export default function App() {
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/library" element={<ProtectedRoute><Library /></ProtectedRoute>} />
             <Route path="/watch/:sessionId" element={<Watch />} />
+            <Route path="/join/:token" element={<Join />} />
           </Routes>
         </main>
       </BrowserRouter>

@@ -265,6 +265,74 @@ export async function deleteVoice(voiceId: string): Promise<void> {
   if (!res.ok) throw new Error(await res.text());
 }
 
+export interface WorkspaceMember {
+  userId: string;
+  role: string;
+  joinedAt: string;
+  email: string | null;
+}
+
+export interface PendingInvite {
+  id: string;
+  email: string;
+  token: string;
+  status: string;
+  created_at: string;
+}
+
+export interface TeamData {
+  workspace: { id: string; name: string; role: 'owner' | 'member' } | null;
+  members: WorkspaceMember[];
+  pendingInvites: PendingInvite[];
+}
+
+export async function getTeam(): Promise<TeamData> {
+  const res = await fetch(`${BASE}/team`, { headers: await getAuthHeader() });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function createWorkspace(name: string): Promise<void> {
+  const res = await fetch(`${BASE}/team`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+export async function inviteMember(email: string): Promise<{ token: string }> {
+  const res = await fetch(`${BASE}/team/invite`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function getInviteInfo(token: string): Promise<{ email: string; workspaceName: string }> {
+  const res = await fetch(`${BASE}/invite/${token}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function acceptInvite(token: string): Promise<void> {
+  const res = await fetch(`${BASE}/team/join/${token}`, {
+    method: 'POST',
+    headers: await getAuthHeader(),
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+export async function removeMember(userId: string): Promise<void> {
+  const res = await fetch(`${BASE}/team/members/${userId}`, {
+    method: 'DELETE',
+    headers: await getAuthHeader(),
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
+
 export interface WatchData {
   sessionId: string;
   title: string;

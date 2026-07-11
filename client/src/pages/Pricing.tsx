@@ -64,9 +64,9 @@ const PLANS = [
     for: 'Agencies, L&D & ops teams',
     features: [
       'Everything in Pro',
-      'Client SOPs & handoff docs',
-      'Internal training libraries',
-      'Agency & team use · SLA support',
+      'Team workspace — invite unlimited members',
+      'Shared brand voice across your whole team',
+      'Client SOPs, training libraries · SLA support',
     ],
     cta: 'Go unlimited',
     accent: 'linear-gradient(135deg, #00d4ff, #b44dff)',

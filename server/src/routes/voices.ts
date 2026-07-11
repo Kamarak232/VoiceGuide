@@ -1,14 +1,22 @@
 import { Router, Response } from 'express';
 import { supabase } from '../services/supabase';
 import { AuthRequest } from '../middleware/auth';
+import { getWorkspaceForUser } from './team';
 
 const router = Router();
 
 router.get('/', async (req: AuthRequest, res: Response) => {
+  // Workspace members hear the owner's brand voice
+  let voiceOwnerId = req.userId!;
+  const ctx = await getWorkspaceForUser(req.userId!);
+  if (ctx && ctx.role === 'member') {
+    voiceOwnerId = ctx.workspace.owner_id;
+  }
+
   const { data, error } = await supabase
     .from('vg_voices')
     .select('voice_id, name, created_at')
-    .eq('user_id', req.userId!)
+    .eq('user_id', voiceOwnerId)
     .order('created_at', { ascending: false });
   if (error) { res.status(500).json({ error: error.message }); return; }
   res.json({ voices: data ?? [] });
