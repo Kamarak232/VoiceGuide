@@ -13,6 +13,7 @@ import Settings from './pages/Settings';
 import Library from './pages/Library';
 import Watch from './pages/Watch';
 import Join from './pages/Join';
+import Tour, { resetTour } from './components/Tour';
 import { useStore } from './store/useStore';
 import { supabase } from './lib/supabase';
 
@@ -134,6 +135,13 @@ export default function App() {
         }
         prevUserIdRef.current = newUserId;
       }
+      if (event === 'USER_UPDATED' || event === 'SIGNED_IN') {
+        // Reset tour for brand-new accounts (created_at within last 60s)
+        const createdAt = session?.user?.created_at;
+        if (createdAt && Date.now() - new Date(createdAt).getTime() < 60_000) {
+          resetTour();
+        }
+      }
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -145,6 +153,7 @@ export default function App() {
     <AuthContext.Provider value={user}>
       <BrowserRouter>
         <Nav />
+        <Tour userId={user?.id} />
         <main className="min-h-screen">
           <Routes>
             <Route path="/" element={<Home />} />
