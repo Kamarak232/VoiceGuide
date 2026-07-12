@@ -5,7 +5,7 @@ import { useStore, SavedVoice } from '../store/useStore';
 import { cloneVoice, getBillingStatus, listVoices, saveVoice, deleteVoice } from '../lib/api';
 import { friendlyError } from '../lib/errors';
 
-type CloneStatus = 'idle' | 'uploading' | 'naming' | 'error';
+type CloneStatus = 'idle' | 'uploading' | 'cloning' | 'naming' | 'error';
 
 function isFishAudioId(id: string) {
   return /^[0-9a-f]{32}$/.test(id);
@@ -64,6 +64,7 @@ export default function Onboarding() {
     setCloneStatus('uploading');
     setCloneError('');
     try {
+      setCloneStatus('cloning');
       const { voiceId: newId } = await cloneVoice(blob);
       setPendingVoiceId(newId);
       setVoiceName('My Voice');
@@ -280,11 +281,18 @@ export default function Onboarding() {
 
           {cloneStatus === 'idle' && <VoiceSampleRecorder onComplete={handleCloneComplete} />}
 
-          {cloneStatus === 'uploading' && (
+          {(cloneStatus === 'uploading' || cloneStatus === 'cloning') && (
             <div className="card flex items-center gap-3 p-4">
               <div className="w-4 h-4 border-2 rounded-full animate-spin flex-shrink-0"
                 style={{ borderColor: 'rgba(0,212,255,0.8)', borderTopColor: 'transparent' }} />
-              <span className="text-sm text-white/70">Cloning your voice with Fish Audio…</span>
+              <div>
+                <span className="text-sm text-white/70">
+                  {cloneStatus === 'uploading' ? 'Uploading voice sample…' : 'Cloning your voice with Fish Audio…'}
+                </span>
+                {cloneStatus === 'cloning' && (
+                  <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>This can take 60–90 seconds</p>
+                )}
+              </div>
             </div>
           )}
 

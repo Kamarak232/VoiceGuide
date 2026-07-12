@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import { upload } from '../middleware/upload';
 import { createVoiceClone, synthesiseWithTimestamps } from '../services/fishaudio';
 import { uploadFile } from '../services/r2';
+import { createJob, updateJob, getJob, enqueue } from '../services/jobQueue';
+import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs';
 import ffmpeg from 'fluent-ffmpeg';
@@ -23,7 +25,7 @@ function convertToMp3(inputPath: string, outputPath: string): Promise<void> {
   });
 }
 
-router.post('/clone', upload.single('audio'), async (req: Request, res: Response) => {
+router.post('/clone', upload.single('audio'), (req: Request, res: Response) => {
   if (!req.file) {
     res.status(400).json({ error: 'No audio file uploaded.' });
     return;
@@ -31,31 +33,45 @@ router.post('/clone', upload.single('audio'), async (req: Request, res: Response
 
   console.log('[clone] file received:', req.file.path, 'size:', req.file.size, 'mime:', req.file.mimetype);
 
+  const jobId = uuidv4();
   const rawPath = req.file.path;
   const mp3Path = rawPath + '.mp3';
+  createJob(jobId);
 
-  try {
-    console.log('[clone] converting to mp3...');
-    await convertToMp3(rawPath, mp3Path);
-    console.log('[clone] mp3 size:', fs.statSync(mp3Path).size);
+  // Return immediately — client polls /clone/job/:jobId
+  res.json({ jobId });
 
-    console.log('[clone] sending to Fish Audio...');
-    const voiceId = await createVoiceClone(mp3Path, 'My Tutorial Voice');
-    console.log('[clone] success, voiceId:', voiceId);
+  enqueue(jobId, async () => {
+    try {
+      updateJob(jobId, { status: 'processing', stage: 'converting' });
+      console.log('[clone] converting to mp3...');
+      await convertToMp3(rawPath, mp3Path);
+      console.log('[clone] mp3 size:', fs.statSync(mp3Path).size);
 
-    res.json({ voiceId });
-  } catch (e: any) {
-    const raw = e?.response?.data;
-    console.error('[clone] error:', JSON.stringify(raw) || e?.message);
-    const detail = (Array.isArray(raw) ? raw.map((r: any) => r?.msg || r?.message).join(', ')
-      : typeof raw === 'object' ? raw?.message || raw?.detail?.message || raw?.detail
-      : null) || e?.message || 'Unknown error';
-    const status = e?.response?.status || 500;
-    res.status(status).json({ error: `Fish Audio error: ${detail}` });
-  } finally {
-    if (fs.existsSync(mp3Path)) fs.unlinkSync(mp3Path);
-    if (fs.existsSync(rawPath)) fs.unlinkSync(rawPath);
-  }
+      updateJob(jobId, { stage: 'cloning' });
+      console.log('[clone] sending to Fish Audio...');
+      const voiceId = await createVoiceClone(mp3Path, 'My Tutorial Voice');
+      console.log('[clone] success, voiceId:', voiceId);
+
+      updateJob(jobId, { status: 'done', result: { voiceId } });
+    } catch (e: any) {
+      const raw = e?.response?.data;
+      console.error('[clone] error:', JSON.stringify(raw) || e?.message);
+      const detail = (Array.isArray(raw) ? raw.map((r: any) => r?.msg || r?.message).join(', ')
+        : typeof raw === 'object' ? raw?.message || raw?.detail?.message || raw?.detail
+        : null) || e?.message || 'Unknown error';
+      updateJob(jobId, { status: 'error', error: `Fish Audio error: ${detail}` });
+    } finally {
+      if (fs.existsSync(mp3Path)) fs.unlinkSync(mp3Path);
+      if (fs.existsSync(rawPath)) fs.unlinkSync(rawPath);
+    }
+  });
+});
+
+router.get('/clone/job/:jobId', (req: Request, res: Response) => {
+  const job = getJob(req.params.jobId);
+  if (!job) { res.status(404).json({ error: 'Job not found.' }); return; }
+  res.json(job);
 });
 
 function getAudioDuration(filePath: string): Promise<number> {

@@ -77,7 +77,18 @@ export async function cloneVoice(audioBlob: Blob): Promise<{ voiceId: string }> 
   form.append('audio', audioBlob, 'voice-sample.webm');
   const res = await fetch(`${BASE}/voice/clone`, { method: 'POST', body: form, headers: await getAuthHeader() });
   if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  const { jobId } = await res.json() as { jobId: string };
+
+  // Poll until Fish Audio finishes cloning (can take 60-120s)
+  for (let i = 0; i < 80; i++) {
+    await new Promise((r) => setTimeout(r, 3000));
+    const pollRes = await fetch(`${BASE}/voice/clone/job/${jobId}`, { headers: await getAuthHeader() });
+    if (!pollRes.ok) continue;
+    const job = await pollRes.json() as { status: string; result?: Record<string, unknown>; error?: string };
+    if (job.status === 'done' && job.result) return { voiceId: job.result.voiceId as string };
+    if (job.status === 'error') throw new Error(job.error || 'Voice cloning failed.');
+  }
+  throw new Error('Voice cloning timed out. Please try again.');
 }
 
 export interface ProcessResponse {
