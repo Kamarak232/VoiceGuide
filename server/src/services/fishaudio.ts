@@ -11,17 +11,22 @@ function apiKey(): string {
 }
 
 export async function createVoiceClone(audioFilePath: string, name: string): Promise<string> {
+  // Read the file into a Buffer once: form-data can compute a Content-Length for a Buffer
+  // (a ReadStream forces Transfer-Encoding: chunked, which Fish Audio's multipart parser
+  // rejects with a 500), and a Buffer is safely re-sendable on every retry attempt.
+  const audioBuffer = fs.readFileSync(audioFilePath);
+
   let res: any;
   try {
     res = await withRetry(
       () => {
-        // Build a fresh FormData + ReadStream each attempt — a consumed stream can't be retried
+        // Build a fresh FormData each attempt so the body is never half-consumed
         const retryForm = new FormData();
         retryForm.append('title', name);
         retryForm.append('type', 'tts');
         retryForm.append('train_mode', 'fast');
         retryForm.append('visibility', 'private');
-        retryForm.append('voices', fs.createReadStream(audioFilePath), {
+        retryForm.append('voices', audioBuffer, {
           filename: 'voice-sample.mp3',
           contentType: 'audio/mpeg',
         });

@@ -70,6 +70,13 @@ export default function VoiceSampleRecorder({ onComplete }: Props) {
 
   const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
+  // Fish Audio needs a meaningful sample to train a clone — block very short recordings
+  // and nudge anything under a minute toward a re-record.
+  const MIN_SECONDS = 10;
+  const RECOMMENDED_SECONDS = 60;
+  const tooShort = seconds < MIN_SECONDS;
+  const shorterThanRecommended = seconds < RECOMMENDED_SECONDS;
+
   return (
     <div className="flex flex-col gap-6">
       {/* Tabs */}
@@ -124,10 +131,24 @@ export default function VoiceSampleRecorder({ onComplete }: Props) {
 
           {recState === 'done' && recAudioUrl && recBlob && (
             <div className="flex flex-col gap-4 w-full max-w-sm">
-              <p className="text-white/70 text-sm">Preview your recording:</p>
+              <p className="text-white/70 text-sm">Preview your recording ({formatTime(seconds)}):</p>
               <audio controls src={recAudioUrl} className="w-full" />
+              {tooShort ? (
+                <p className="text-sm" style={{ color: 'rgba(255,120,120,0.9)' }}>
+                  Recording is too short ({formatTime(seconds)}). Record at least {MIN_SECONDS} seconds — 1–3 minutes gives the best clone.
+                </p>
+              ) : shorterThanRecommended ? (
+                <p className="text-sm" style={{ color: 'rgba(255,200,80,0.9)' }}>
+                  Short samples produce lower-quality clones. Aim for at least 1 minute — 2–3 minutes is ideal.
+                </p>
+              ) : null}
               <div className="flex gap-3">
-                <button onClick={() => onComplete(recBlob)} className="btn-neon">
+                <button
+                  onClick={() => onComplete(recBlob)}
+                  disabled={tooShort}
+                  className="btn-neon"
+                  style={tooShort ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
+                >
                   Clone my voice →
                 </button>
                 <button onClick={resetRecording} className="btn-ghost px-4 py-2 text-sm">

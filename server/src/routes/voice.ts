@@ -60,7 +60,7 @@ router.post('/clone', upload.single('audio'), (req: Request, res: Response) => {
       const detail = (Array.isArray(raw) ? raw.map((r: any) => r?.msg || r?.message).join(', ')
         : typeof raw === 'object' ? raw?.message || raw?.detail?.message || raw?.detail
         : null) || e?.message || 'Unknown error';
-      updateJob(jobId, { status: 'error', error: `Fish Audio error: ${detail}` });
+      updateJob(jobId, { status: 'error', error: `Voice clone failed: ${detail}` });
     } finally {
       if (fs.existsSync(mp3Path)) fs.unlinkSync(mp3Path);
       if (fs.existsSync(rawPath)) fs.unlinkSync(rawPath);

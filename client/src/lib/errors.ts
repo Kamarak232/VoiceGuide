@@ -13,14 +13,16 @@ export function friendlyError(e: unknown): string {
   if (msg.toLowerCase().includes('413') || msg.toLowerCase().includes('too large') || msg.toLowerCase().includes('payload')) {
     return 'Your recording is too large to upload. Try a shorter recording (under 5 minutes).';
   }
+  // Clone errors are checked before timeout/synthesis — "clone" in the message identifies the
+  // failing stage, even when the underlying cause was a timeout or a Fish Audio error.
+  if (msg.toLowerCase().includes('clone') || msg.toLowerCase().includes('cloning')) {
+    return 'Voice cloning failed. Make sure your audio sample is at least 1 minute long and try again.';
+  }
   if (msg.toLowerCase().includes('timeout') || msg.toLowerCase().includes('timed out')) {
     return 'The request took too long. The server may be busy — try again in a moment.';
   }
-  if (msg.toLowerCase().includes('fish audio') || msg.toLowerCase().includes('tts')) {
+  if (msg.toLowerCase().includes('tts') || msg.toLowerCase().includes('synthes')) {
     return 'Voice synthesis failed. Check that your Fish Audio credits are topped up, then try again.';
-  }
-  if (msg.toLowerCase().includes('voice') && msg.toLowerCase().includes('clone')) {
-    return 'Voice cloning failed. Make sure your audio sample is at least 1 minute long and try again.';
   }
   if (msg.toLowerCase().includes('screen recording not found')) {
     return 'Your recording was lost — the server restarted. Please record again and export straight away.';
