@@ -20,7 +20,14 @@ export async function createVoiceClone(audioFilePath: string, name: string): Pro
   try {
     res = await withRetry(
       () => {
-        // Build a fresh FormData each attempt so the body is never half-consumed
+        // Build a fresh FormData each attempt so the body is never half-consumed.
+        //
+        // Field contract verified against the live API (see server/test-fishaudio.ts,
+        // probed 2026-07-12): `type` is REQUIRED (omitting it -> 422 "Field required")
+        // and `train_mode` is REQUIRED and must be the literal 'fast' ('default' is
+        // rejected with 422 "Input should be 'fast'"). Do not remove or change these.
+        // A 5xx here (e.g. 503 "Failed to preprocess audio: no available server") is a
+        // Fish Audio outage, not a request problem.
         const retryForm = new FormData();
         retryForm.append('title', name);
         retryForm.append('type', 'tts');
@@ -40,8 +47,19 @@ export async function createVoiceClone(audioFilePath: string, name: string): Pro
       { label: 'Fish Audio clone', attempts: 3, baseDelayMs: 5000 }
     );
   } catch (e: any) {
+    const status = e?.response?.status;
     const body = e?.response?.data;
-    console.error('[Fish Audio] clone error body:', JSON.stringify(body));
+    console.error('[Fish Audio] clone error status:', status, 'body:', JSON.stringify(body));
+    // 5xx = Fish Audio's side (their preprocessing cluster returns e.g.
+    // 503 "Failed to preprocess audio: no available server"). Surface a clear
+    // message instead of the raw "Internal Server Error" string.
+    if (typeof status === 'number' && status >= 500) {
+      const upstream = typeof body === 'string' ? body : body?.message;
+      throw new Error(
+        `Fish Audio's voice cloning service is temporarily unavailable` +
+          `${upstream ? ` (${String(upstream).trim()})` : ''}. Please try again in a few minutes.`
+      );
+    }
     throw e;
   }
 

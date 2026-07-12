@@ -14,6 +14,11 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason) => {
   console.error('[unhandledRejection]', reason);
 });
+// Diagnostic: if Render restarts the service, this shows whether the process
+// actually exited (and with what code) vs. the platform recycling an idle instance.
+process.on('exit', (code) => {
+  console.error(`[exit] process exiting with code ${code}`);
+});
 import voiceRouter from './routes/voice';
 import recordingRouter from './routes/recording';
 import exportRouter from './routes/export';
