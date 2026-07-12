@@ -11,26 +11,28 @@ function apiKey(): string {
 }
 
 export async function createVoiceClone(audioFilePath: string, name: string): Promise<string> {
-  const form = new FormData();
-  form.append('title', name);
-  form.append('type', 'tts');
-  form.append('train_mode', 'fast');
-  form.append('visibility', 'private');
-  form.append('voices', fs.createReadStream(audioFilePath), {
-    filename: 'voice-sample.mp3',
-    contentType: 'audio/mpeg',
-  });
-
   let res: any;
   try {
     res = await withRetry(
-      () => axios.post(`${BASE}/model`, form, {
-        headers: { ...form.getHeaders(), Authorization: `Bearer ${apiKey()}` },
-        timeout: 120_000, // 2 minutes — upload can be slow on Render
-        maxBodyLength: Infinity,
-        maxContentLength: Infinity,
-      }),
-      { label: 'Fish Audio clone', attempts: 3, baseDelayMs: 3000 }
+      () => {
+        // Build a fresh FormData + ReadStream each attempt — a consumed stream can't be retried
+        const retryForm = new FormData();
+        retryForm.append('title', name);
+        retryForm.append('type', 'tts');
+        retryForm.append('train_mode', 'fast');
+        retryForm.append('visibility', 'private');
+        retryForm.append('voices', fs.createReadStream(audioFilePath), {
+          filename: 'voice-sample.mp3',
+          contentType: 'audio/mpeg',
+        });
+        return axios.post(`${BASE}/model`, retryForm, {
+          headers: { ...retryForm.getHeaders(), Authorization: `Bearer ${apiKey()}` },
+          timeout: 120_000,
+          maxBodyLength: Infinity,
+          maxContentLength: Infinity,
+        });
+      },
+      { label: 'Fish Audio clone', attempts: 3, baseDelayMs: 5000 }
     );
   } catch (e: any) {
     const body = e?.response?.data;
