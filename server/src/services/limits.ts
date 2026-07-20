@@ -7,14 +7,22 @@ export const PLAN_LIMITS: Record<string, number> = {
   studio: 999999,
 };
 
+const ADMIN_EMAILS = new Set(
+  (process.env.ADMIN_EMAILS ?? '').split(',').map((e) => e.trim()).filter(Boolean)
+);
+
 export async function checkVideoLimit(
   userId: string
 ): Promise<{ allowed: boolean; plan: string; used: number; limit: number }> {
   const { data: user } = await supabase
     .from('vg_users')
-    .select('plan')
+    .select('plan, email')
     .eq('id', userId)
     .single();
+
+  if (user?.email && ADMIN_EMAILS.has(user.email as string)) {
+    return { allowed: true, plan: 'studio', used: 0, limit: 999999 };
+  }
 
   const plan = (user?.plan as string) ?? 'free';
   const limit = PLAN_LIMITS[plan] ?? 3;

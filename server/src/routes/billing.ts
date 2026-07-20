@@ -13,13 +13,22 @@ const PLAN_PRICE: Record<string, string | undefined> = {
   studio: process.env.STRIPE_PRICE_STUDIO,
 };
 
+const ADMIN_EMAILS = new Set(
+  (process.env.ADMIN_EMAILS ?? '').split(',').map((e) => e.trim()).filter(Boolean)
+);
+
 // GET /billing/status — current plan + usage
 router.get('/status', async (req: AuthRequest, res: Response) => {
   const { data: user } = await supabase
     .from('vg_users')
-    .select('plan, stripe_customer_id')
+    .select('plan, stripe_customer_id, email')
     .eq('id', req.userId!)
     .single();
+
+  if (user?.email && ADMIN_EMAILS.has(user.email as string)) {
+    res.json({ plan: 'studio', used: 0, limit: 999999, hasStripe: !!user.stripe_customer_id });
+    return;
+  }
 
   const plan = (user?.plan as string) ?? 'free';
   const limit = PLAN_LIMITS[plan] ?? 3;
