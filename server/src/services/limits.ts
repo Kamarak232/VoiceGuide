@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 
 export const PLAN_LIMITS: Record<string, number> = {
-  free: 3,
+  free: 1,
   creator: 20,
   pro: 60,
   studio: 999999,

@@ -9,7 +9,7 @@ const PLANS = [
     name: 'Free',
     price: '$0',
     period: 'forever',
-    videos: '3 videos / month',
+    videos: '1 video / month',
     for: 'Try it risk-free',
     features: [
       'AI script from any screen recording',
